@@ -12,6 +12,7 @@ FunnelWeb: Decide which tile to observe next, based on sidereal time and observi
 import numpy as np
 import random
 import pickle
+import json
 import datetime
 
 from astropy.time import Time
@@ -120,9 +121,9 @@ class Scheduler():
 		else:
 			self.lon=149.0685 # deg East
 
-		#~ observatory=EarthLocation('Anglo-Australian Observatory')
-		observatory = Observer(at_site="Anglo-Australian Observatory")
-		sun_set = apo.sun_set_time(time, which="next")
+		#observatory=EarthLocation('Anglo-Australian Observatory')
+		#~ observatory = Observer(at_site="Anglo-Australian Observatory")
+		#~ sun_set = apo.sun_set_time(time, which="next")
 
 
 		"""
@@ -162,16 +163,21 @@ class Scheduler():
 			else:
 				self.ra_min=None
 				print 'WARNING: You must enter 0 < ra_min < 360.'
+		else:
+			self.ra_min=None
+			
 		if ra_max:
 			if ra_max>1e-10 and ra_max<360.0+1e-10:
 				self.ra_max=ra_max
 			else:
 				self.ra_max=None
 				print 'WARNING: You must enter 0 < ra_max < 360.'
+		else:
+			self.ra_max=None
 
 		if self.ra_min and self.ra_max:
 			if self.ra_min>self.ra_max or np.abs(self.ra_min-self.ra_max)<1e-6:
-				print 'WARNING: '
+				print 'WARNING: ra_min and ra_max are not within valid limits or ra_min>ra_max.'
 
 
 
@@ -222,6 +228,20 @@ class Scheduler():
 		#~ self.best_tiles_to_observe_now=[ObsTile(TaipanTile=x) for x in self.tiles]
 		self.best_tiles_to_observe_now=[ObsTile(tp=x, lat=self.lat, local_sidereal_time=self.local_sidereal_time, moon=self.moon) for x in self.tiles]
 
+
+	def __str__(self):
+		string="""
+		__str__:
+		TODO=True
+		"""
+		return string
+
+	def __repr__(self):
+		string="""
+		__repr__:
+		TODO=True
+		"""
+		return string
 
 	def find_the_best_tile_to_observe_now(self): # A combination of different methods
 		"""
@@ -416,6 +436,24 @@ class Scheduler():
 		# x.difficulty Difficulty: summing up the difficulties of the TaipanTargets within the tile. ##### WHAT IS THIS? it is probably relevant
 
 
+	def print_selected_tile_to_json(self):
+		"""
+		Generate dictionary of output data and write to a json file.
+		"""
+		# Generate dictionary
+		t = self.best_tiles_to_observe_now[0]
+		data={
+		'tile_id': t.TaipanTile.field_id
+		}
+		#~ 'TaipanTile': t.TaipanTile # Class is not serializable
+		
+		# Write
+		# Each time add timestamp to json file. Is this a good idea? Because then Jeeves has to search for the latest filename each time.
+		timestamp=self.utc.value.replace(' ', '--')
+		filename='selected_tile_%s.json'%timestamp
+		with open(filename, 'w') as outfile:  
+			json.dump(data, outfile)	
+		print '%s created.'%filename
 
 class ObsTile():
 	"""
@@ -540,19 +578,6 @@ class ObsTile():
 
 # Why is altitude determined here, and not in Scheduler (where we can automatically skip tiles too low in the sky so we don't have to determine moon distance etc. of this file: if we are going to determine tile list for the entire night, then altitude changes overnight anyway. But...!
 
-def test_tile_distribution_in_the_sky():
-	fl = open('171308_1647_fw_tiling.pkl','rb')
-	tiles = pickle.load(fl)[0]
-	fl.close()
-	print 'Number of tiles:', len(tiles)
-	
-	c=np.array([[x.ra/15.0, x.dec] for x in tiles])
-	
-	import matplotlib.pylab as plt
-	fig=plt.figure()
-	ax=fig.add_subplot(111)
-	ax.scatter(c[:,0], c[:,1], s=5)
-	plt.show()
 	
 
 """
@@ -564,19 +589,72 @@ All the possible situations:
 
 """
 
+def run_scheduler(tiling_filename, observed_tiles_filename):
+	"""
+	Run scheduler for testing purposes.
+	"""
+	# Basic example with no limitations other than altitude and Moon distance
+	s=Scheduler(tiling_filename=tiling_filename, observed_tiles_filename=observed_tiles_filename)
 
-if __name__ == "__main__":
-	#~ test_tile_distribution_in_the_sky()
-	#~ exit(0)
+	# Example with limitations
+	#~ s=Scheduler(tiling_filename=tiling_filename, observed_tiles_filename=observed_tiles_filename, alt_min=20.0, alt_max=50.0, moon_angdist_min=20.0, ra_min=200, ra_max=250, limiting_magnitude=9)
 	
-	s=Scheduler(tiling_filename='171308_1647_fw_tiling.pkl', observed_tiles_filename='171308_1647_fw_tiling_observed_tiles.txt', alt_min=20.0, alt_max=50.0, moon_angdist_min=20.0, ra_min=200, ra_max=250, limiting_magnitude=9)
+	
+	print s
 	print 'LST', s.local_sidereal_time
 	#~ print s.find_the_best_tile_to_observe_now()
 	t=s.find_the_best_tile_to_observe_now()
 	t0=t[0]
 	#~ print 'Best tile:', t.alt, t.hour_angle, t.angular_moon_distance, t.TaipanTile.priority
 	print 'Best tile:', t0
+	#~ s.print_selected_tile_to_json()
 	
 	for x in t[:10]:
-		print x
+		print x	
+
+def test_tile_distribution_in_the_sky(filename):
+	"""
+	Plot RA, Dec of all the candidate tiles from the tiling file.
+	"""
+	fl = open(filename,'rb')
+	tiles = pickle.load(fl)[0]
+	fl.close()
+	print 'Number of tiles:', len(tiles)
+	
+	c=np.array([[x.ra/15.0, x.dec] for x in tiles])
+	
+	import matplotlib.pylab as plt
+	fig=plt.figure()
+	ax=fig.add_subplot(111)
+	ax.scatter(c[:,0], c[:,1], s=5)
+	plt.show()
+
+def test_read_json_file(filename):
+	"""
+	Check if json file is readable.
+	"""
+	with open(filename) as json_file:  
+		data = json.load(json_file)
+	print data
+
+		
+			
+if __name__ == "__main__":
+	tiling_filename='171308_1647_fw_tiling.pkl'
+	observed_tiles_filename='171308_1647_fw_tiling_observed_tiles.txt'
+
+
+	"""
+	Run Scheduler
+	"""
+	run_scheduler(tiling_filename, observed_tiles_filename)
+
+	
+	"""
+	Tests
+	"""
+	#~ test_tile_distribution_in_the_sky(tiling_filename)
+	#~ test_read_json_file('selected_tile_2017-10-09--01:42:30.379.json')
+	
+
 	
