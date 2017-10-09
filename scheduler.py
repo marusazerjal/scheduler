@@ -607,7 +607,7 @@ def run_scheduler(tiling_filename, observed_tiles_filename):
 	t0=t[0]
 	#~ print 'Best tile:', t.alt, t.hour_angle, t.angular_moon_distance, t.TaipanTile.priority
 	print 'Best tile:', t0
-	#~ s.print_selected_tile_to_json()
+	s.print_selected_tile_to_json()
 	
 	for x in t[:10]:
 		print x	
