@@ -380,7 +380,7 @@ class Scheduler():
         # All candidate tiles: exclude those that are not visible; we need this to determine density weights
         self.select_only_tiles_within_hour_angle_amp_all_candidate_tiles()
 
-        result=[ObsTile(tp=x, lat=self.lat, local_sidereal_time=local_sidereal_time, moon=moon, observatory=observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current, max_priority=self.max_priority, tile_density_radius=self.tile_density_radius, observed_tiles=self.observed_tiles, tiles_mag_range=self.tiles_mag_range, altitude_low_fraction=self.altitude_low_fraction) for x in tiles]
+        result=[ObsTile(tp=x, lat=self.lat, local_sidereal_time=local_sidereal_time, moon=moon, observatory=observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current, max_priority=self.max_priority, tile_density_radius=self.tile_density_radius, observed_tiles=self.observed_tiles, altitude_low_fraction=self.altitude_low_fraction) for x in tiles]
 
         return result
 
@@ -491,7 +491,7 @@ class Scheduler():
         # Priorities
         # Determine weights for candidate tiles:
         for x in self.best_tiles_to_observe_now:
-            x.weighting()
+            x.weighting(tiles_mag_range=self.tiles_mag_range)
         
         b = sorted(self.best_tiles_to_observe_now, key=lambda y: y.weight, reverse=True)
         self.best_tiles_to_observe_now=b
@@ -521,7 +521,7 @@ class Scheduler():
         TODO: What is ObsConfig file?
         """     
         # Observatory
-        #~ observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
+        observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
         
         #~ # Determine sunset and sunrise times
         #~ datenow=datetime.datetime.now().date()
@@ -535,6 +535,7 @@ class Scheduler():
         
         sunset=observatory.datetime_to_astropy_time(sun_set)
         
+        f=open('observing_plan.dat', 'wb')
 
         # UTC times
         times = [sun_set + datetime.timedelta(minutes=i*self.time_per_tile) for i in range(1, 100) if sun_set + datetime.timedelta(minutes=i*self.time_per_tile)<=sun_rise]
@@ -601,12 +602,19 @@ class Scheduler():
             observing_start = t - datetime.timedelta(hours=H_amp)
             observing_stop = t + datetime.timedelta(hours=H_amp)
             observing_ideal = Time(t - datetime.timedelta(hours=best_tile.hour_angle)).utc.sidereal_time('mean', longitude=self.lon).value # Do I insert time NOW or time of meridian crossing?
-            print '%02d%02d %02d%02d %02d%02d %05d /observers_files/funnelweb/YYYYMMDD/%05d_HHMMSS.obs_config.json'%(t.hour, t.minute, observing_start.hour, observing_start.minute, observing_stop.hour, observing_stop.minute, best_tile.TaipanTile.field_id, best_tile.TaipanTile.field_id) # TODO: change t. to observing_ideal
+            
+            
+            """
+            Print output
+            """
+            line='%02d%02d %02d%02d %02d%02d %05d /observers_files/funnelweb/YYYYMMDD/%05d_HHMMSS.obs_config.json'%(t.hour, t.minute, observing_start.hour, observing_start.minute, observing_stop.hour, observing_stop.minute, best_tile.TaipanTile.field_id, best_tile.TaipanTile.field_id)
+            print line # TODO: change t. to observing_ideal
             print
             # TODO: what happens with observing_ideal for tiles at ALT=90? Because there is a limit at 85 degrees.
+            f.write(line+'\n')
         
             count+=1
-        
+        f.close()
 
     def exclude_tiles_already_observed(self):
         """
@@ -790,7 +798,7 @@ class ObsTile():
     Observational parameters of a tile. This class makes no observational decisions, it only determines parameters.
     """
     #~ @profile
-    def __init__(self, tp=None, lat=None, local_sidereal_time=None, moon=None, observatory=None, sunset=None, ra_current=None, dec_current=None, max_priority=None, tile_density_radius=None, local_surface_area=None, tile_density_global=None, observed_tiles=None, tiles_mag_range=None, altitude_low_fraction=None):
+    def __init__(self, tp=None, lat=None, local_sidereal_time=None, moon=None, observatory=None, sunset=None, ra_current=None, dec_current=None, max_priority=None, tile_density_radius=None, local_surface_area=None, tile_density_global=None, observed_tiles=None, altitude_low_fraction=None):
         """
         Parameters
         ----------        
@@ -818,7 +826,7 @@ class ObsTile():
         self.max_priority=max_priority
         self.tile_density_radius=tile_density_radius
         self.observed_tiles=observed_tiles # ACTUALLY not a good idea as it takes a lot of RAM eventually over time
-        self.tiles_mag_range=tiles_mag_range
+        #~ self.tiles_mag_range=tiles_mag_range
         #~ print '-----------------', self.tiles_mag_range
         
         
@@ -1007,7 +1015,7 @@ class ObsTile():
 
             
     #~ @profile
-    def weighting(self):
+    def weighting(self, tiles_mag_range=None):
         """
         Weighting between H (hour angle), Ranking (priority) and slew time.
         """
@@ -1015,7 +1023,7 @@ class ObsTile():
         w_altitude = self.weighting_altitude() # [0, 1]
         w_slew_time = self.weighting_slew_time() # [0, 1]
         w_ranking = float(self.TaipanTile.priority) / float(self.max_priority) # [0, 1]
-        w_density = self.weighting_field_density() # [0, 1]
+        w_density = self.weighting_field_density(tiles_mag_range=tiles_mag_range) # [0, 1]
         
         w = w_ranking * w_altitude * w_slew_time * w_density * 1000.0
         #~ w = w_ranking * w_altitude * w_slew_time * 100.0
@@ -1076,7 +1084,7 @@ class ObsTile():
         return result
 
     #~ @profile
-    def weighting_field_density(self):
+    def weighting_field_density(self, tiles_mag_range=None):
         """
         Determine local field density (for a particular magnitude range)
         """
@@ -1092,7 +1100,7 @@ class ObsTile():
             # No fields were observed yet
             return 1.0
         n=0
-        for x in observed_tiles:
+        for x in observed_tiles: # TODO: make hour_angle exclusion loop (because after time number of observed tiles is going to grow (or perhaps not because new tiling will be generated each month)
             if np.abs(ra-x.ra)<self.tile_density_radius and np.abs(dec-x.dec)<self.tile_density_radius:
                 d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
                 if d<self.tile_density_radius:
@@ -1109,11 +1117,12 @@ class ObsTile():
             #~ print self.local_sidereal_time, self.local_sidereal_time*15.0, x.ra, ra
 
 
-        for x in self.tiles_mag_range[mag_range]:
+        for x in tiles_mag_range[mag_range]:
             #~ print ra, x.ra
-            d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
-            if d<self.tile_density_radius:
-                n+=1
+            if np.abs(ra-x.ra)<self.tile_density_radius and np.abs(dec-x.dec)<self.tile_density_radius:
+                d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
+                if d<self.tile_density_radius:
+                    n+=1
         n_total=float(n)
 
         #~ print len(self.tiles_mag_range[mag_range])
@@ -1240,9 +1249,9 @@ if __name__ == "__main__":
     """
     Run Scheduler
     """
-    #~ run_scheduler(tiling_filename, observed_tiles_filename)
+    run_scheduler(tiling_filename, observed_tiles_filename)
     
-    observing_plan(tiling_filename, observed_tiles_filename)
+    #~ observing_plan(tiling_filename, observed_tiles_filename)
 
     
     """
