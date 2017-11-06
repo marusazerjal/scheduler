@@ -13,6 +13,7 @@ import math
 import random
 import pickle
 import json
+import urllib2
 import datetime
 from collections import defaultdict
 
@@ -25,10 +26,18 @@ from astroplan import Observer
 from astroplan import FixedTarget
 
 import line_profiler
+import pdb
+import matplotlib.pyplot as plt
 
 # Taipan
 import taipan.core as tp
 # Have to run the code in python 2. Astropy requires numpy>1.9.1. How to do that? It doesn't work with pip
+
+# FunnelWeb Scheduler
+import manage_list_of_observed_tiles
+import params
+
+#~ print params.params
 
 """
 Constants
@@ -42,13 +51,15 @@ ALTITUDE_LOW_FRACTION = 0.8 # Fraction = Current altitude / altitude at local me
 HOUR_ANGLE_AMP = 3 # hours, consider only tiles with H = +/- HOUR_ANGLE_AMP
 # But be careful: when moon is on the local meridian, what happens?
 
-# Minimal angular Moon distance
-MOON_ANGDIST_MIN=20.0
+# Minimal angular Moon distance.
+# TODO: Should I include magnitude dependent Moon distances?
+MOON_ANGDIST_MIN=15.0 # Minimal acceptable distance
+MOON_ANGDIST_OK=30.0 # Distance where sky illumination by the Moon is negligible
 
-TIME_PER_TILE=30#10 # [minutes], 10 minutes altogether per tile
+TIME_PER_TILE=10#10 # [minutes], 10 minutes altogether per tile
 SLEW_TIME_MIN=60.0 # [seconds], take slew time into consideration above this limit
 
-TILE_DENSITY_RADIUS=15.0 #deg, radius to compute observed tile surface density
+TILE_DENSITY_RADIUS=6.0 #deg, radius to compute observed tile surface density
 
 """
 Observer's coordinates
@@ -62,7 +73,8 @@ LON=149.0685 # deg East
 """
 Read the data
 """
-tiling_filename='171308_1647_fw_tiling.pkl'
+#~ tiling_filename='171308_1647_fw_tiling.pkl'
+tiling_filename=params.params['input_tiling_filename']
 try:
     tiles = data[0]#[:10]
     settings = data[2]
@@ -78,12 +90,14 @@ except NameError:
 print 'Number of tiles:', len(tiles)
 
 
+observed_tiles_internal_filename = '%s_observed_tiles_internal.dat'%(tiling_filename[:-11])
+
 
 class Scheduler():
     """
     Schedule FunnelWeb tile observations.
     """
-    def __init__(self, tiling_filename=None, observed_tiles_filename=None, weather_data_filename=None, alt_min=None, alt_max=None, ra_min=None, ra_max=None, moon_angdist_min=None, lat=None, lon=None, desired_priority=None, minimal_priority=None, time_per_tile=TIME_PER_TILE, limiting_magnitude=None, slew_time_min=SLEW_TIME_MIN, ra_current=None, dec_current=None, tile_density_radius=TILE_DENSITY_RADIUS, altitude_low_fraction=ALTITUDE_LOW_FRACTION):
+    def __init__(self, weather_data_filename=None, alt_min=None, alt_max=None, ra_min=None, ra_max=None, moon_angdist_min=None, lat=None, lon=None, desired_priority=None, minimal_priority=None, time_per_tile=TIME_PER_TILE, limiting_magnitude=None, slew_time_min=SLEW_TIME_MIN, ra_current=None, dec_current=None, tile_density_radius=TILE_DENSITY_RADIUS, altitude_low_fraction=ALTITUDE_LOW_FRACTION):
         """
         Parameters
         ----------
@@ -142,10 +156,13 @@ class Scheduler():
             #~ print 'tiling_filename is None.'
             #~ exit(0)
 
+        self.weather_conditions()
+
         self.tiles = tiles
         self.settings = settings
 
 
+        # todo: check if this is already read in the method
         if weather_data_filename:
             self.weather_data=np.loadtxt(weather_data_filename) # STRING!!
         else:
@@ -168,9 +185,8 @@ class Scheduler():
         self.tiles=tiles2
         self.max_priority=np.max(priorities)
 
-
-        self.observed_tiles_filename=observed_tiles_filename
-        self.manage_observed_tiles()
+        self.observed_tiles_internal_filename=params.params['observed_tiles_internal_filename']
+        #~ self.observed_tiles_filename=observed_tiles_filename # TODO
         
         self.tile_density_radius=tile_density_radius
         
@@ -289,11 +305,11 @@ class Scheduler():
             self.moon_angdist_min = MOON_ANGDIST_MIN # degrees    
 
 
-        """
-        ------------------------------------
-        Time dependent variables
-        ------------------------------------
-        """
+        #~ """
+        #~ ------------------------------------
+        #~ Time dependent variables
+        #~ ------------------------------------
+        #~ """
 
         """
         Determine local sidereal time
@@ -316,7 +332,7 @@ class Scheduler():
         """
         Moon
         """
-        self.moon = get_moon(self.utc)
+        #~ self.moon = get_moon(self.utc)
         # Astropy Moon coordinates agree with Stellarium within a degree. This is good enough for the Scheduler.
 
         # User defined settings
@@ -346,138 +362,45 @@ class Scheduler():
         """
         return string
 
-    def init_best_tiles_to_observe(self, local_sidereal_time=None, moon=None, observatory=None, sunset=None, ra_current=None, dec_current=None):
-        """
-        Init ObsTiles. At the beginning all tiles are assumed good to observe, then we throw away those not appropriate at the moment.
-        """
-        #~ # TODO: insert current telescope position in order to estimate slew time
-        
-        if local_sidereal_time is None:
-            local_sidereal_time=self.local_sidereal_time
-        if moon is None:
-            moon=self.moon
-        if ra_current is None:
-            ra_current=self.ra_current
-        if dec_current is None:
-            dec_current=self.dec_current
-
-        # Init only those that are within HOUR_ANGLE_AMP
-        tiles = self.select_only_tiles_within_hour_angle_amp()
-
-        # All candidate tiles: exclude those that are not visible; we need this to determine density weights
-        self.select_only_tiles_within_hour_angle_amp_all_candidate_tiles()
-
-        result=[ObsTile(tp=x, lat=self.lat, local_sidereal_time=local_sidereal_time, moon=moon, observatory=observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current, max_priority=self.max_priority, tile_density_radius=self.tile_density_radius, observed_tiles=self.observed_tiles, altitude_low_fraction=self.altitude_low_fraction) for x in tiles]
-
-        return result
-
-    def select_only_tiles_within_hour_angle_amp(self):
-        """
-        Exclude tiles that are not visible right now. Keep only those close to the local meridian (H_amp away from the local meridian at most).
-        """
-        S=self.local_sidereal_time
-        H_amp = self.hour_angle_amp
-        
-        ra_min = S - H_amp
-        if ra_min<0.0:
-            ra_min=24.0-ra_min
-        ra_min *= 15.0
-        
-        ra_max = S + H_amp
-        if ra_max>24.0:
-            ra_max=ra_max-24.0
-        ra_max *= 15.0
-
-        if ra_min<ra_max:
-            b=[x for x in self.tiles if x.ra>ra_min and x.ra<ra_max]
-        elif ra_min>ra_max:
-            b1=[x for x in self.tiles if x.ra>ra_min]
-            b2=[x for x in self.tiles if x.ra<ra_max]
-            b=b1+b2
-
-        return b
-
-    def select_only_tiles_within_hour_angle_amp_all_candidate_tiles(self):
-        """
-        Exclude tiles in the 'all hemisphere candidate tiles list' that are not observable this night. This speeds up the tile surface density determination.
-        """
-        sunset_lst=Time(self.sun_set).utc.sidereal_time('mean', longitude=self.lon).value
-        sunrise_lst=Time(self.sun_rise).utc.sidereal_time('mean', longitude=self.lon).value
-        
-        H_amp = 0.25
-        
-        ra_min = sunset_lst - H_amp
-        if ra_min<0.0:
-            ra_min=24.0-ra_min
-        ra_min *= 15.0
-        
-        ra_max = sunrise_lst + H_amp
-        if ra_max>24.0:
-            ra_max=ra_max-24.0
-        ra_max *= 15.0
-
-        if ra_min<ra_max:
-            new_dict={}
-            for k, v in self.tiles_mag_range.iteritems():
-                b=[x for x in v if x.ra>ra_min and x.ra<ra_max]
-                new_dict[k]=b
-            self.tiles_mag_range=new_dict
-        elif ra_min>ra_max:
-            new_dict={}
-            for k, v in self.tiles_mag_range.iteritems():
-                b=[x for x in v if x.ra>ra_min]
-                new_dict[k]=b
-                
-            for k, v in self.tiles_mag_range.iteritems():
-                b=[x for x in v if x.ra<ra_max]
-                b0=new_dict[k]
-                new_dict[k]=b0+b
-
-            self.tiles_mag_range=new_dict
 
     #~ @profile
-    def find_the_best_tile_to_observe_now(self): # Run this to find the best tile to observe now.
+    def find_the_best_tile_to_observe_now(self, date=None, time=None): # Run this to find the best tile to observe now.
         """
-        
+        Find the next tile to be observed. This is what Jeeves is going to call each time.
         """
-        self.best_tiles_to_observe_now=self.init_best_tiles_to_observe()
-        best_tiles = self.find_the_best_tile_to_observe()
-        return best_tiles
-  
-    #~ @profile    
-    def find_the_best_tile_to_observe(self): # A combination of different methods. Used by both: find_the_best_tile_to_observe_now and make_list_of_best_tiles_through_the_night
-        """
-        This is a master function. Use multiple methods to find a best tile to be observed now.
-        First, all tiles are assumed to be appropriate to observe. Then we exclude tiles that are not appropriate at the moment.
-        """
+        # If date and time is user specified
+        if date:
+            if time:
+                tm=time
+            else:
+                tm='23:00:00'
+            DateTime = Time('%s %s'%(date, tm))
        
-        # Exclude tiles already observed. Only tiles from the input tiling file are considered + tiles already selected in the all-night schedule.
-        self.exclude_tiles_already_observed()
+            self.utc = Time(DateTime, format='iso', scale='utc')
+            self.local_sidereal_time = self.utc.sidereal_time('mean', longitude=self.lon).value
+            #~ self.moon = get_moon(self.utc)        
         
-        # Position restrictions
-        self.lower_RA_limit()
-        self.upper_RA_limit()
-        self.lower_altitude_limit() # Tiles visible on this day
-        self.exclude_zenith()
-        self.exclude_tiles_too_close_to_the_moon()
         
-        # Magnitude restrictions
-        self.exclude_tiles_below_limiting_magnitude() # user defined
+
         
-        # Priorities
-        # Determine weights for candidate tiles:
-        for x in self.best_tiles_to_observe_now:
-            x.weighting(tiles_mag_range=self.tiles_mag_range)
+        # Receive info from Jeeves whether the last tile was successfully observed or not
         
-        b = sorted(self.best_tiles_to_observe_now, key=lambda y: y.weight, reverse=True)
-        self.best_tiles_to_observe_now=b
         
-        #~ self.find_tiles_closest_to_local_meridian() # TODO: tile_priority overrides this sorting
-        #~ self.tile_priority()
+        # Receive weather data from Jeeves
         
-        # Get data
-        best_tile=self.best_tiles_to_observe_now
-        return best_tile
+        
+        # Receive telescope position from Jeeves
+        # self.ra_current=
+        # self.dec_current=
+        
+        self.best_tiles_to_observe_now=self.init_best_tiles_to_observe(exclude_observed=True, only_1_tile_now=True)
+        best_tiles = self.find_the_best_tile_to_observe()
+        
+        
+        # Assume that this tile is going to be observed successfully. Add it on the list of observed tiles.
+        self.add_tile_to_list_of_observed_tiles(tile_id=best_tiles[0].TaipanTile.field_id)
+        
+        return best_tiles
 
     #~ @profile
     def make_list_of_best_tiles_through_the_night(self, date=None, time=None):
@@ -499,31 +422,46 @@ class Scheduler():
         # Observatory
         #~ observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
         
-        #~ # Determine sunset and sunrise times
-        #~ datenow=datetime.datetime.now().date()
-        #~ date='%d-%02d-%02d'%(datenow.year, datenow.month, datenow.day)
-        #~ time = Time('%s 23:30:00'%date)
+        #~ pdb.set_trace()
         
-        #~ sun_set = observatory.sun_set_time(time, which="previous").datetime
-        #~ sun_rise = observatory.sun_rise_time(time, which="previous").datetime # previous. This is correct.
-        sun_set=self.sun_set
-        sun_rise=self.sun_rise
+        # If date and time is user specified
+        if date:
+            if time:
+                tm=time
+            else:
+                tm='23:00:00'
+            DateTime = Time('%s %s'%(date, tm))
+            sun_set = self.observatory.sun_set_time(DateTime, which="previous").datetime
+            sun_rise = self.observatory.sun_rise_time(DateTime, which="previous").datetime # previous. This is correct.
+        
+        else:
+            #~ # Determine sunset and sunrise times
+            #~ datenow=datetime.datetime.now().date()
+            #~ date='%d-%02d-%02d'%(datenow.year, datenow.month, datenow.day)
+            sun_set=self.sun_set
+            sun_rise=self.sun_rise
         
         sunset=self.observatory.datetime_to_astropy_time(sun_set)
         
-        f=open('observing_plan.dat', 'wb')
+        f=open('observing_plan_%s.dat'%date, 'wb')
 
         # UTC times
         times = [sun_set + datetime.timedelta(minutes=i*self.time_per_tile) for i in range(1, 100) if sun_set + datetime.timedelta(minutes=i*self.time_per_tile)<=sun_rise]
+        print 'Number of tiles this night:', len(times)
         
         # Convert UTC times to LST
         times_lst = [Time(t).utc.sidereal_time('mean', longitude=self.lon).value for t in times]
 
+        time_efficiency=[]
+        telescope_positions=[] # for testing purposes
+        
+
         selected_tiles=[]
         count=1
-        for t, lst in zip(times, times_lst):            
+        for t, lst in zip(times, times_lst):
+            t_start=datetime.datetime.now()      
             #~ utc = Time('%d-%02d-%02d %02d:%02d:%02d'%(t.year, t.month, t.day, t.hour, t.minute, t.second), format='iso', scale='utc')
-            utc = observatory.datetime_to_astropy_time(t)
+            utc = self.observatory.datetime_to_astropy_time(t)
             moon = get_moon(utc)
 
             # TODO: Where are ra_current and dec_current updated? Jeeves needs to tell us where the telescope is (or we take coordinates of the previously selected tile; however, at the beginning of the night we need to know where the telescope is, or when we take over from Taipan, or if for some reason telescope is slewed manually etc.).
@@ -531,17 +469,35 @@ class Scheduler():
                 ra_current=best_tile.TaipanTile.ra
                 dec_current=best_tile.TaipanTile.dec
             except:
+                # TODO
+                #~ ra_current=self.ra_current
+                #~ dec_current=self.dec_current
                 ra_current=self.ra_current
-                dec_current=self.dec_current
+                dec_current=-70.0
+
+            # Here exclude tiles that have already been observed.
+            # Two parallel lists: one internal and one external. External includes tiles that were confirmed to be observed by Jeeves.
+            # But while the last tile is being observed and scheduler is waiting for Jeeves to receive confirmation about observation, scheduler needs to select a new tile.
+            # So the assumption of scheduler is that the tile that is being observed in the moment is going to be observed with success and it adds it to the internal 'observed' list.
+        
+
 
             self.local_sidereal_time=lst # TODO: check if this violates any other things. Why cant I insert LST to init_best_tiles...??
-            self.best_tiles_to_observe_now=self.init_best_tiles_to_observe(local_sidereal_time=lst, moon=moon, observatory=observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current) # TODO: why sunset, but I skip sunrise?
+            #~ print 'set lst', lst, self.local_sidereal_time, lst*15.0
             
+            self.best_tiles_to_observe_now, tiles_mag_range_tmp = self.init_best_tiles_to_observe(local_sidereal_time=lst, moon=moon, observatory=self.observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current) # TODO: why sunset, but I skip sunrise?
+            # Init includes: Init only those that are within HOUR_ANGLE_AMP
+            
+            #~ print 'LEN 0000000', len(self.best_tiles_to_observe_now)
             
             # Find best tile for time t
-            tls=self.find_the_best_tile_to_observe()
+            tls=self.find_the_best_tile_to_observe(tiles_mag_range=tiles_mag_range_tmp)
+            
+            if len(tls)<1:
+                print 'len TLS<1', len(self.best_tiles_to_observe_now), lst
             
             # Tiles cannot be selected twice
+            # TODO: this is not needed anymore as there is an external list ob observed tiles available.
             do_selection=True
             i=0
             while do_selection:
@@ -554,7 +510,21 @@ class Scheduler():
             
             # TODO: among the tiles with best weights, select one closest to local meridian!!!
             
+            
+            
+            # Assign TILE ID
+            # RA, DEC, TIME
+            tile_id_time = datetime.datetime.now()
+            # TODO: time should be in UTC (more universal + there is no problems with daylight savings time)
+            sign=0
+            if best_tile.TaipanTile.dec>0.0:
+                sign=1
+            tile_id = '%03d%01d%02d%04d%02d%02d%02d%02d'%(best_tile.TaipanTile.ra, sign, np.abs(best_tile.TaipanTile.dec), tile_id_time.year, tile_id_time.month, tile_id_time.day, tile_id_time.hour, tile_id_time.minute)
+            # Time is the same for multiple tiles because code is faster than 1 minute. Correct that.
+            
+            
             # Update list of observed tiles
+            manage_list_of_observed_tiles.add_tile_id_internal_to_the_list(tile_id_internal=best_tile.TaipanTile.field_id, filename=self.observed_tiles_internal_filename)
             # TODO: LATER update the code: wait for Jeeves to confirm that tile has been observed successfully
             self.observed_tile_ids.append(int(best_tile.TaipanTile.field_id))
             mag_range=(float(best_tile.TaipanTile.mag_min), float(best_tile.TaipanTile.mag_max))
@@ -565,13 +535,20 @@ class Scheduler():
                 obs_tiles_tmp=[best_tile.TaipanTile]
             self.observed_tiles[mag_range]=obs_tiles_tmp
 
-            print count, len(times), t, lst*15.0
+            print 'TILE ID', tile_id, 'Separately', best_tile.TaipanTile.ra, sign, np.abs(best_tile.TaipanTile.dec), tile_id_time.year, tile_id_time.month, tile_id_time.day, tile_id_time.hour, tile_id_time.minute
+            print count, len(times), t, lst*15.0, 'LOCAL TIME = ', t-datetime.timedelta(hours=11.0), 'obs tiles len', mag_range, len(self.observed_tiles[mag_range])
             print 'LST=%s'%(('%.11f'%lst).rjust(14)), best_tile #, best_tile.meridian_transit_time.datetime
+            
+            telescope_positions.append([best_tile.TaipanTile.ra, best_tile.TaipanTile.dec, moon.ra.value, moon.dec.value, best_tile.angular_moon_distance])
             
 
             # Print out the data
             H_amp = best_tile.estimate_best_time_interval_to_observe_tile()
-            # TODO: check if this times are during the night, not e.g. just before sunset or just after sunrise
+            if H_amp is None:
+                todo=True
+                
+            # TODO: check if this times are during the night, not e.g. just before sunset or just after sunrise, otherwise limit them within sunset and sunrise time
+            #~ print 't, H_amp', t, H_amp
             observing_start = t - datetime.timedelta(hours=H_amp)
             observing_stop = t + datetime.timedelta(hours=H_amp)
             observing_ideal = Time(t - datetime.timedelta(hours=best_tile.hour_angle)).utc.sidereal_time('mean', longitude=self.lon).value # Do I insert time NOW or time of meridian crossing?
@@ -582,23 +559,110 @@ class Scheduler():
             """
             line='%02d%02d %02d%02d %02d%02d %05d /observers_files/funnelweb/YYYYMMDD/%05d_HHMMSS.obs_config.json'%(t.hour, t.minute, observing_start.hour, observing_start.minute, observing_stop.hour, observing_stop.minute, best_tile.TaipanTile.field_id, best_tile.TaipanTile.field_id)
             print line # TODO: change t. to observing_ideal
-            print
+           
             # TODO: what happens with observing_ideal for tiles at ALT=90? Because there is a limit at 85 degrees.
             f.write(line+'\n')
         
             count+=1
+            
+            t_end=datetime.datetime.now() 
+            time_efficiency.append((t_end-t_start).seconds)
+            
+            # PLOT
+            self.plot(moon=moon, lst=lst, best_tiles=tls, tiles=self.tiles_mag_range, best_tile=best_tile, i=count-1, ra_current=ra_current, dec_current=dec_current, telescope_positions=telescope_positions)
+            
+            
+            
+            print
+            
+            
         f.close()
+        
+        print 'Average time to find the next tile: [seconds]', np.mean(time_efficiency)
+        
+        telescope_positions=np.array(telescope_positions)
+        return telescope_positions
+ 
 
-    def exclude_tiles_already_observed(self):
+    def init_best_tiles_to_observe(self, local_sidereal_time=None, moon=None, observatory=None, sunset=None, ra_current=None, dec_current=None, exclude_observed=False):
         """
-        Exclude tiles with tile IDs in the list of tiles already observed.
+        Init ObsTiles. At the beginning all tiles are assumed good to observe, then we throw away those not appropriate at the moment.
         """
-        if len(self.observed_tile_ids)>0:
-            good=[x for x in self.best_tiles_to_observe_now if x.TaipanTile.field_id not in self.observed_tile_ids]
-            self.best_tiles_to_observe_now=good
-        else:
-            pass
-    
+        #~ # TODO: insert current telescope position in order to estimate slew time
+        
+        if local_sidereal_time is None:
+            local_sidereal_time=self.local_sidereal_time
+        if moon is None:
+            self.moon = get_moon(self.utc)
+            moon=self.moon # fix this
+        if ra_current is None:
+            ra_current=self.ra_current
+        if dec_current is None:
+            dec_current=self.dec_current
+
+
+        #~ pdb.set_trace()
+
+        # Init only those that are within HOUR_ANGLE_AMP
+        tiles, tiles_mag_range = self.select_only_tiles_within_hour_angle_amp(S=local_sidereal_time)
+        
+        #~ print 'LEN 1', len(tiles)
+           
+        #~ if exclude_observed:
+        tiles=self.exclude_tiles_already_observed(tiles=tiles)
+        
+        #~ print 'LEN 2', len(tiles)
+
+        # To determine surface density of observed tiles: devide into mag_range classes
+        self.manage_observed_tiles() # has to be list of ObsTiles
+
+        #~ self.internal_observed_tiles_mag_range_read()
+
+        # All candidate tiles: exclude those that are not visible; we need this to determine density weights
+        #~ self.select_only_tiles_within_hour_angle_amp_all_candidate_tiles()
+        
+
+        result=[ObsTile(tp=x, lat=self.lat, local_sidereal_time=local_sidereal_time, moon=moon, observatory=observatory, sunset=sunset, ra_current=ra_current, dec_current=dec_current, max_priority=self.max_priority, tile_density_radius=self.tile_density_radius, observed_tiles=self.observed_tiles, altitude_low_fraction=self.altitude_low_fraction) for x in tiles]
+
+        return result, tiles_mag_range
+
+
+    #~ @profile    
+    def find_the_best_tile_to_observe(self, tiles_mag_range=None): # A combination of different methods. Used by both: find_the_best_tile_to_observe_now and make_list_of_best_tiles_through_the_night
+        """
+        This is a master function. Use multiple methods to find a best tile to be observed now.
+        First, all tiles are assumed to be appropriate to observe. Then we exclude tiles that are not appropriate at the moment.
+        """  
+        # Exclude tiles already observed. Only tiles from the input tiling file are considered + tiles already selected in the all-night schedule.
+        #~ tiles=self.exclude_tiles_already_observed(tiles=self.best_tiles_to_observe_now)
+        #~ self.best_tiles_to_observe_now=tiles
+
+        # Position restrictions
+        self.lower_RA_limit()
+        self.upper_RA_limit()
+        self.lower_altitude_limit() # Tiles visible on this day
+        self.exclude_zenith()
+        self.exclude_tiles_too_close_to_the_moon()
+        
+        # Magnitude restrictions
+        self.exclude_tiles_below_limiting_magnitude() # user defined
+        
+        # Priorities
+        # Determine weights for candidate tiles:
+        for x in self.best_tiles_to_observe_now:
+            #~ x.weighting(tiles_mag_range=tiles_mag_range, internal_observed_tiles_mag_range=self.internal_observed_tiles_mag_range)
+            x.weighting(tiles_mag_range=tiles_mag_range, internal_observed_tiles_mag_range=self.observed_tiles)
+        
+        b = sorted(self.best_tiles_to_observe_now, key=lambda y: y.weight, reverse=True)
+        self.best_tiles_to_observe_now=b
+
+        #~ self.find_tiles_closest_to_local_meridian() # TODO: tile_priority overrides this sorting
+        #~ self.tile_priority()
+        
+        # Get data
+        best_tile=self.best_tiles_to_observe_now
+        return best_tile
+
 
     def lower_altitude_limit(self):
         """
@@ -644,6 +708,65 @@ class Scheduler():
         else:
             pass
 
+
+    def select_only_tiles_within_hour_angle_amp(self, S=None):
+        """
+        Exclude tiles that are not visible right now. Keep only those close to the local meridian (H_amp away from the local meridian at most).
+        """
+        #~ S = self.local_sidereal_time
+        H_amp = self.hour_angle_amp
+        
+        ra_min = S - H_amp
+        if ra_min<0.0:
+            ra_min=24.0+ra_min
+        ra_min *= 15.0
+        
+        ra_max = S + H_amp
+        if ra_max>24.0:
+            ra_max=ra_max-24.0
+        ra_max *= 15.0
+
+        if ra_min<ra_max:
+            b=[x for x in self.tiles if x.ra>ra_min and x.ra<ra_max]
+        elif ra_min>ra_max:
+            b1=[x for x in self.tiles if x.ra>ra_min]
+            b2=[x for x in self.tiles if x.ra<ra_max]
+            b=b1+b2
+
+        B=b
+
+        # All candidate tiles
+        H_amp = H_amp + 2.0*self.tile_density_radius/15.0
+        
+        ra_min = S - H_amp
+        if ra_min<0.0:
+            ra_min=24.0+ra_min
+        ra_min *= 15.0
+        
+        ra_max = S + H_amp
+        if ra_max>24.0:
+            ra_max=ra_max-24.0
+        ra_max *= 15.0
+
+        new_dict={}
+        if ra_min<ra_max:
+            for k, v in self.tiles_mag_range.iteritems():
+                b=[x for x in v if x.ra>ra_min and x.ra<ra_max]
+                new_dict[k]=b
+        elif ra_min>ra_max:
+            for k, v in self.tiles_mag_range.iteritems():
+                b=[]
+                b=[x for x in v if x.ra>ra_min]
+                new_dict[k]=b
+
+            for k, v in self.tiles_mag_range.iteritems():
+                b=[]
+                b=[x for x in v if x.ra<ra_max]
+                b0=new_dict[k]
+                new_dict[k]=b0+b
+
+        return B, new_dict
+
         
     def find_tiles_closest_to_local_meridian(self):
         """
@@ -688,7 +811,10 @@ class Scheduler():
         
         WHAT is a relation between seeing and limiting magnitude?
         
-        sky transparency (--> limiting magnitude)        
+        sky transparency (--> limiting magnitude) 
+        
+        
+        Sky transparency: -10 is probably rain, -20 is clear (with possible cirruses). But this is the average.       
         
         
         """
@@ -700,6 +826,48 @@ class Scheduler():
             
             
             #~ self.limiting_magnitude=TODO
+       
+       
+       
+        
+
+        data = urllib2.urlopen("http://site.aao.gov.au/met/metdata.dat").read(500) # read only 20 000 chars
+        data = data.split("\n") # then split it into lines
+        
+        
+        # Check if date and time are close enough to our observations
+        
+        date=data[0].replace('"', '').replace('.', '').replace(' ', '')
+        date_spl=date.split('-')
+        month=int(date_spl[0])
+        day=int(date_spl[1])
+        year=int(date_spl[2])
+        
+        spl=data[1].split('\t')
+        
+        time=spl[0].split(':')
+        hour=int(time[0])
+        minute=int(time[1])
+        
+        time_weather = datetime.datetime(year, month, day, hour, minute)
+        time_now = datetime.datetime.now()
+        
+        if time_weather>time_now:
+            dt=time_weather-time_now
+        else:
+            dt=time_now-time_weather
+        
+        dt=str(dt).split(':')
+        dt=float(dt[0])*60.0+float(dt[1])
+        print 'weather dt', dt
+        # Note: There is 1 hour difference between Stromlo and SSO. Why??!?
+        
+        #~ seeing=float(spl[13]) # there is no seeing info in the data
+        sky_transparency=float(spl[13])
+
+        #~ print 'seeing, sky_transparency', seeing, sky_transparency
+        print 'sky_transparency', sky_transparency
+        
         
         
             
@@ -720,12 +888,16 @@ class Scheduler():
 
 
     def manage_observed_tiles(self):
+        """
+        This list of observed tiles per magnitude range is needed to determine sky surface density of observed tiles.
+        """
         tiles_dict={x.field_id: x for x in self.tiles}
 
         obs_tiles_dict = defaultdict(list)
-        if self.observed_tiles_filename:
+        # TODO: if --> try?
+        if self.observed_tiles_internal_filename:
             #~ try:
-            observed_tiles=np.loadtxt(self.observed_tiles_filename, comments='#')
+            observed_tiles=np.loadtxt(self.observed_tiles_internal_filename, comments='#', ndmin=1)
             self.observed_tile_ids=[int(x) for x in observed_tiles] # a list of integers (IDs)
 
             # Split into magnitude ranges
@@ -740,6 +912,60 @@ class Scheduler():
                 #~ print 'WARNING: File with tile IDs already observed cannot be read.'
         else:
             self.observed_tile_ids=[]        
+
+    #~ def internal_observed_tiles_mag_range_read(self):
+        #~ obs_tiles_dict = defaultdict(list)
+        #~ try:
+            #~ observed_tiles_internal=np.loadtxt(self.observed_tiles_internal_filename, ndmin=1)
+            #~ for x in observed_tiles_internal:
+                #~ tileid=int(x[0])
+                #~ mag_min=float(x[1])
+                #~ mag_max=float(x[1])
+                #~ obs_tiles_dict[(mag_min, mag_max)].append(tileid)
+            #~ self.internal_observed_tiles_mag_range=obs_tiles_dist
+        #~ except:
+            #~ self.internal_observed_tiles_mag_range=obs_tiles_dict
+            #~ pass
+
+    def exclude_tiles_already_observed(self, tiles=None):
+        # Exclude tiles that have already been observed
+        """
+        Internal: My tile_ids, stored in the TaipanTile.field_id
+        External: Tile IDs with RA, DEC, DATE
+        """
+        try:
+            observed_tiles_internal=np.loadtxt(self.observed_tiles_internal_filename, ndmin=1)
+            observed_tiles_internal=[int(x) for x in observed_tiles_internal]
+            #~ print observed_tiles_internal
+        #~ print 'tiles', tiles
+        
+            try:
+                tiles2=[x for x in tiles if x.field_id not in observed_tiles_internal]
+            except:
+                tiles2=[x for x in tiles if x.TaipanTile.field_id not in observed_tiles_internal]
+        except:
+            # No tiles were observed yet.
+            tiles2=tiles
+        
+
+        return tiles2
+
+    def add_tile_to_list_of_observed_tiles(self, tile_id=None):
+        #~ try:
+            #~ observed_tiles_internal=np.loadtxt(observed_tiles_internal_filename, ndmin=1)
+            #~ observed_tiles_internal=[int(x) for x in observed_tiles_internal]
+            #~ observed_tiles_internal.append(tile_id)
+        #~ except:
+            #~ observed_tiles_internal=[tile_id]
+        
+        #~ # TODO: later, when number of observed tiles becomes big, add only the last line. Do not overwrite file each time.
+        #~ f=open(observed_tiles_internal_filename, 'wb')
+        #~ for x in observed_tiles_internal:
+            #~ f.write(str(int(x))+'\n')
+        #~ f.close()
+        
+        manage_list_of_observed_tiles.add_tile_id_internal_to_the_list(tile_id_internal=tile_id, filename=observed_tiles_internal_filename)
+  
 
 
     def print_selected_tile_to_json(self):
@@ -760,6 +986,64 @@ class Scheduler():
         with open(filename, 'w') as outfile:  
             json.dump(data, outfile)    
         print '%s created.'%filename
+
+
+    def plot(self, moon=None, lst=None, best_tiles=None, tiles=None, best_tile=None, i=None, ra_current=None, dec_current=None, telescope_positions=None):
+        lst=lst*15.0
+        if lst>180:
+            lst=lst-360.0
+        plot_ra_amp=50
+
+        #~ print 'plot LST', lst
+
+        w=np.array([[x.TaipanTile.ra, x.TaipanTile.dec, x.weight] for x in best_tiles if x.hour_angle<6.0])
+        w=np.array([x if x[0]<180 else [x[0]-360.0, x[1], x[2]] for x in w])
+        w=np.array(sorted(w, key=lambda y: y[2]))
+        
+        
+        telescope_positions=np.array([[x[0] if x[0]<180 else x[0]-360.0, x[1]] for x in telescope_positions])
+        
+        tl=[x for x in tiles.itervalues()]
+        tiles=[x for sublist in tl for x in sublist]
+
+        tiles=np.array([[x.ra, x.dec] for x in tiles])
+        tiles=np.array([x if x[0]<180 else [x[0]-360.0, x[1]] for x in tiles])
+
+
+       
+        fig=plt.figure()
+        ax=fig.add_subplot(111)
+        ax.axvline(x=lst)
+        ax.axvline(x=lst-15.0, alpha=0.5)
+        ax.axvline(x=lst+15.0, alpha=0.5)
+        ax.scatter(tiles[:,0], tiles[:,1], c='grey', alpha=0.1)
+        
+        m=[moon.ra.value if moon.ra.value<180.0 else moon.ra.value-360.0, moon.dec.value]
+        ax.scatter(m[0], m[1], c='red', s=200)
+        
+        cb=ax.scatter(w[:,0], w[:,1], c=w[:,2], vmin=0, vmax=1, cmap=plt.cm.RdYlGn_r)
+        plt.colorbar(cb)
+
+        
+        # Current telescope position
+        ctp=[ra_current if ra_current<180.0 else ra_current-360.0, dec_current]
+        #~ ax.scatter(ctp[0], ctp[1], c='None', edgecolor='k', s=150)
+        ax.scatter(telescope_positions[:,0], telescope_positions[:,1], c='None', edgecolor='k', s=150)
+        ax.plot(telescope_positions[:,0], telescope_positions[:,1], c='k')
+  
+        
+        bt=[best_tile.TaipanTile.ra if best_tile.TaipanTile.ra<180.0 else best_tile.TaipanTile.ra-360.0, best_tile.TaipanTile.dec]
+        #~ ax.scatter([best_tile.TaipanTile.ra], [best_tile.TaipanTile.dec], c='None', edgecolor='r', s=150)
+        ax.scatter(bt[0], bt[1], c='None', edgecolor='r', s=150)  
+        
+        
+        ax.set_xlim([lst-plot_ra_amp, lst+plot_ra_amp])
+        ax.set_xlabel('RA [deg, -180:180]')
+        ax.set_ylabel('DEC [deg]')
+        #~ plt.show()
+        plt.savefig('seq/%3d.png'%i)
+        plt.close()  
+
 
 class ObsTile():
     """
@@ -820,7 +1104,7 @@ class ObsTile():
         self.local_sidereal_time = value
         
     def __str__(self):
-        string = 'TP TILE %s: RA=%s, Dec=%s, Ranking=%s, w=%s, Altitude=%s, H=%s, Moon_dist=%s, mag_max=%s' % (('%d'%self.TaipanTile.field_id).rjust(5), ('%3.1f'%self.TaipanTile.ra).rjust(5), ('%2.1f'%self.TaipanTile.dec).rjust(5), ('%d'%self.TaipanTile.priority).rjust(5), ('%2.4f'%self.weight).rjust(8), ('%d'%self.alt).rjust(2), ('%.2f'%self.hour_angle).rjust(6), ('%d'%self.angular_moon_distance).rjust(3), ('%d'%self.TaipanTile.mag_max).rjust(2))
+        string = 'TP TILE %s: RA=%s, Dec=%s, Ranking=%s, w=%s, Altitude=%s, H=%s, Moon_dist=%s, mag_max=%s' % (('%d'%self.TaipanTile.field_id).rjust(5), ('%3.1f'%self.TaipanTile.ra).rjust(5), ('%2.1f'%self.TaipanTile.dec).rjust(5), ('%d'%self.TaipanTile.priority).rjust(5), ('%2.4f'%(self.weight*1000.0)).rjust(8), ('%d'%self.alt).rjust(2), ('%.2f'%self.hour_angle).rjust(6), ('%d'%self.angular_moon_distance).rjust(3), ('%d'%self.TaipanTile.mag_max).rjust(2)) + ' surface density %f %d %d'%(self.surface_density[0], self.surface_density[1], self.surface_density[2])
         return string
 
     #~ def __repr__(self):
@@ -857,7 +1141,7 @@ class ObsTile():
     #~ @profile
     def determine_azimuth(self, ra=None, dec=None, alt=None, H=None):
         """
-        Azimuth for the tile.
+        Azimuth of the tile.
         """
         #~ alpha=np.deg2rad(ra)
         # TODO: remove ra.
@@ -866,8 +1150,11 @@ class ObsTile():
         phi=np.deg2rad(self.lat)
         hour_angle = np.deg2rad(H*15.0)
         
-        cosA = (np.sin(delta) - np.sin(h)*np.sin(phi)) / (np.cos(h)*np.cos(phi))
-        sinA = - np.sin(hour_angle) * np.cos(delta) / np.cos(h)
+        #~ cosA = (np.sin(delta) - np.sin(h)*np.sin(phi)) / (np.cos(h)*np.cos(phi))
+        #~ sinA = - np.sin(hour_angle) * np.cos(delta) / np.cos(h)
+
+        cosA = (np.sin(h)*np.sin(phi) - np.sin(delta)) / (np.cos(h)*np.cos(phi))
+        sinA = np.sin(hour_angle) * np.cos(delta) / np.cos(h)
         
         A = math.atan2(sinA, cosA)
         A = np.rad2deg(A)
@@ -951,53 +1238,101 @@ class ObsTile():
         """
         dec=np.deg2rad(self.dec)
         lat=np.deg2rad(self.lat)
+        
+        # If star is above the horizon (our 'horizon' is at ALT_MIN) at all times:
+        if self.lat+self.dec+ALT_MIN<-90.0:
+            distance_from_the_pole=(90.0+self.dec)# self.dec<0
+            alt_low=self.alt_max-2.0*distance_from_the_pole
+            h_good_low = alt_low + 2.0*distance_from_the_pole*self.altitude_low_fraction
+        else:
+            h_good_low = self.alt_max * self.altitude_low_fraction
 
-        h_good_fraction = self.altitude_low_fraction
-        h_meridian = self.alt_max
-        h_good_low = h_meridian * h_good_fraction
+        if h_good_low<ALT_MIN:
+            h_good_low=ALT_MIN            
         h_good_low = np.deg2rad(h_good_low)
         
         cosH = (np.sin(h_good_low) - np.sin(lat)*np.sin(dec)) / (np.cos(lat)*np.cos(dec))
-        #~ print h_meridian, h_meridian * h_good_fraction, self.dec, self.lat, cosH
+
         try:
             H = np.arccos(cosH)
             H = np.rad2deg(H)
             H = np.abs(H)
             H = H / 15.0 # hours
         except:
-            return 5000000.0 # TODO: how to treat |cosH|>1??
+            H=None # TODO: how to treat |cosH|>1?? This is for circumpolar stars.
         return H
 
             
     #~ @profile
-    def weighting(self, tiles_mag_range=None):
+    def weighting(self, tiles_mag_range=None, internal_observed_tiles_mag_range=None):
         """
         Weighting between H (hour angle), Ranking (priority) and slew time.
         """
         w_altitude = self.weighting_altitude() # [0, 1]
         w_slew_time = self.weighting_slew_time() # [0, 1]
-        w_density = self.weighting_field_density(tiles_mag_range=tiles_mag_range) # [0, 1]
+        w_moon = self.weighting_moon_distance()
+        w_density = self.weighting_field_density(tiles_mag_range=tiles_mag_range, internal_observed_tiles_mag_range=internal_observed_tiles_mag_range) # [0, 1]
         
         w_ranking = float(self.TaipanTile.priority) / float(self.max_priority) # [0, 1]
         # Some tiles have ranking equal to 0. So we set probability to 0.5:
         if w_ranking<1e-12:
             w_ranking=0.5
         
-        w = w_ranking * w_altitude * w_slew_time * w_density * 1000.0      
+        # Weighting 1
+        w = w_ranking * w_altitude * w_slew_time * w_moon * w_density
+        
+        # Weighting 1.1, don't do this
+        #~ w = w_ranking**2 * w_altitude * w_slew_time * w_moon * w_density
+        
+        # Weighting 1.2
+        #~ w = w_ranking * w_altitude * w_slew_time * w_moon * w_density**6
+        
+        # Weighting 1.3
+        #~ w = w_ranking * w_altitude**2 * w_slew_time**2 * w_moon * w_density**6
+
+        # Weighting 2        
+        #~ w = w_ranking + w_altitude + w_slew_time + w_moon + w_density
+        #~ w = w/5.0
+
+        # Weighting 3, this is not OK because all the probabilities are very high
+        #~ if all(x > 0.0 for x in [w_ranking, w_altitude, w_slew_time, w_moon, w_density]):
+            #~ c=[10, 5, 5, 1, 10]
+            #~ w = c[0]*w_ranking + c[1]*w_altitude + c[2]*w_slew_time + c[3]*w_moon + c[4]*w_density
+            #~ w = w/np.sum(c)
+        #~ else:
+            #~ w=0.0
+        
         self.weight = w
+
         
     def weighting_altitude(self):
         """
         Return altitude_current / altitude_at_meridian.
         """
-        H=self.hour_angle
-        dec=self.TaipanTile.dec
         alt=self.alt
         alt_max=self.alt_max # altitude at local meridian
-        
-        w = float(alt)/float(alt_max)
+
+        # If star is above the horizon (our 'horizon' is at ALT_MIN) at all times:
+        if self.lat+self.dec+ALT_MIN<-90.0:
+            distance_from_the_pole=(90.0+self.dec)# self.dec<0
+            alt_min=alt_max-2.0*distance_from_the_pole
+            w = float(alt-alt_min)/float(2.0*distance_from_the_pole)
+        else:
+            w = float(alt)/float(alt_max)
         
         return w
+
+    def weighting_moon_distance(self):
+        d=self.angular_moon_distance
+        if d<MOON_ANGDIST_MIN:
+            w=0.0
+        elif d>MOON_ANGDIST_OK:
+            w=1
+        else:
+            k=(1.0-0.5)/(MOON_ANGDIST_OK-MOON_ANGDIST_MIN)
+            n=0.5-k*MOON_ANGDIST_MIN
+            w=k*d+n
+        return w 
 
     #~ @profile
     def weighting_slew_time(self):
@@ -1033,17 +1368,14 @@ class ObsTile():
 
         m=np.max([angle, az])
         result=(180.0 - m) / 180.0
-        #~ result=((180.0 - m) / 180.0)**4
-        #~ result=np.cos(m)
-        result=np.exp(-result)
-        #~ result=np.exp(-m)
-        
+        #~ result=np.exp(-result)
+
         #~ print 'azimuth', ra1, ra2, dec1, dec2, az1, az2, az, m, result
 
         return result
 
     #~ @profile
-    def weighting_field_density(self, tiles_mag_range=None):
+    def weighting_field_density(self, tiles_mag_range=None, internal_observed_tiles_mag_range=None):
         """
         Determine local field density (for a particular magnitude range)
         """
@@ -1053,33 +1385,64 @@ class ObsTile():
         mag_range=(float(self.TaipanTile.mag_min), float(self.TaipanTile.mag_max))
 
         # Number of observed tiles within the tile_density_radius
-        try:
-            observed_tiles=self.observed_tiles[mag_range]
-        except:
-            # No fields were observed yet
-            return 1.0
+        #~ try:
+            #~ observed_tiles=self.observed_tiles[mag_range]
+        #~ except:
+            #~ # No fields were observed yet
+            #~ return 1.0
+
+        observed_tiles=internal_observed_tiles_mag_range[mag_range]#self.observed_tiles[mag_range]
+        #~ print 'len observed_tiles', mag_range, len(observed_tiles)
+        
+            
+            
+            
         n=0
         for x in observed_tiles: # TODO: make hour_angle exclusion loop (because after time number of observed tiles is going to grow (or perhaps not because new tiling will be generated each month)
             if np.abs(ra-x.ra)<self.tile_density_radius and np.abs(dec-x.dec)<self.tile_density_radius:
+                #~ print 'IN'
                 d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
+                #~ print d
                 if d<self.tile_density_radius:
                     n+=1
         n_observed=float(n)
 
 
+        #~ print 'tile density radius', self.tile_density_radius
+
         # All candidate tiles from the tiling code within tile_density_radius
         n=0
+        ramin=360
+        ramax=0
         for x in tiles_mag_range[mag_range]:
+            #~ print 'start', 'tile ra', ra, 'tiles ra', x.ra, 'tile dec', dec, 'tiles dec', x.dec
+            if x.ra>ramax:
+                ramax=x.ra
+            if x.ra<ramin:
+                ramin=x.ra
             if np.abs(ra-x.ra)<self.tile_density_radius and np.abs(dec-x.dec)<self.tile_density_radius:
+                #~ print 'IIIINNNNN', self.tile_density_radius
                 d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
+                #~ print 'DDDDDD', d
                 if d<self.tile_density_radius:
                     n+=1
         n_total=float(n)
 
+        #~ if n<0.5:
+            #~ return 0.0 # apparently out of the range
+
+        if n_total<0.5:
+            print 'ramin, ramax', ramin, ramax, ra
+            #~ pdb.set_trace()
+        
+        weight = 1.0 - n_observed / n_total
+
+        #~ print 'n_observed, n_total', n_observed, n_total, weight, 'len(observed_tiles)', len(observed_tiles), mag_range
+
+        self.surface_density=[weight, n_observed, n_total]
+        
         if n<0.5:
             return 0.0 # apparently out of the range
-
-        weight = 1.0 - n_observed / n_total
 
         return weight
     
@@ -1093,33 +1456,86 @@ All the possible situations:
 
 """
 
-def run_scheduler(tiling_filename, observed_tiles_filename):
+def run_scheduler(time=None, date=None):
     """
     Run scheduler for testing purposes.
     """
     # Basic example with no limitations other than altitude and Moon distance
-    s=Scheduler(tiling_filename=tiling_filename, observed_tiles_filename=observed_tiles_filename)
+    s=Scheduler()
 
     # Example with limitations
     #~ s=Scheduler(tiling_filename=tiling_filename, observed_tiles_filename=observed_tiles_filename, alt_min=20.0, alt_max=50.0, moon_angdist_min=20.0, ra_min=200, ra_max=250, limiting_magnitude=9)
     
 
-    t=s.find_the_best_tile_to_observe_now()
-    t0=t[0]
-    print 'Best tile:', t0
+    t=s.find_the_best_tile_to_observe_now(time=time, date=date)
+    best_tile=t[0]
+    print 'Best tile:', best_tile
     s.print_selected_tile_to_json()
     
     for x in t[:10]:
         print x    
 
 
-def observing_plan(tiling_filename, observed_tiles_filename, date=None, time=None):
+    # PLOT
+    lst=s.local_sidereal_time*15.0
+    if lst>180:
+        lst=lst-360.0
+    plot_ra_amp=50
+    #~ if lst-plot_ra_amp
+    moon=s.moon
+    w=np.array([[x.TaipanTile.ra, x.TaipanTile.dec, x.weight] for x in t if x.hour_angle<6.0])
+    w=np.array([x if x[0]<180 else [x[0]-360.0, x[1], x[2]] for x in w])
+    w=np.array(sorted(w, key=lambda y: y[2]))
+    tiles=np.array([[x.ra, x.dec] for x in s.tiles])
+    tiles=np.array([x if x[0]<180 else [x[0]-360.0, x[1]] for x in tiles])
+
+
+    import matplotlib.pyplot as plt
+    fig=plt.figure()
+    ax=fig.add_subplot(111)
+    ax.axvline(x=lst)
+    ax.scatter(tiles[:,0], tiles[:,1], c='grey', alpha=0.1)
+    
+    m=[moon.ra.value if moon.ra.value<180.0 else moon.ra.value-360.0, moon.dec.value]
+    ax.scatter(m[0], m[1], c='red', s=200)
+    cb=ax.scatter(w[:,0], w[:,1], c=w[:,2], vmin=0, vmax=1, cmap=plt.cm.RdYlGn_r)
+    plt.colorbar(cb)
+    
+    bt=[best_tile.TaipanTile.ra if best_tile.TaipanTile.ra<180.0 else best_tile.TaipanTile.ra-360.0, best_tile.TaipanTile.dec]
+    #~ ax.scatter([best_tile.TaipanTile.ra], [best_tile.TaipanTile.dec], c='None', edgecolor='r', s=150)
+    ax.scatter(bt[0], bt[1], c='None', edgecolor='r', s=150)
+    
+    # Current telescope position
+    ctp=[s.ra_current if s.ra_current<180.0 else s.ra_current-360.0, s.dec_current]
+    ax.scatter(ctp[0], ctp[1], c='None', edgecolor='k', s=150)
+    
+    
+    ax.set_xlim([lst-plot_ra_amp, lst+plot_ra_amp])
+    #~ plt.show()
+    plt.savefig('test.png')
+    
+    
+def observing_plan(date=None, time=None):
     """
     Run observing plan for testing purposes.
     """
 
-    s=Scheduler(tiling_filename=tiling_filename, observed_tiles_filename=observed_tiles_filename)
-    s.make_list_of_best_tiles_through_the_night(date=date, time=time)
+    t_start=datetime.datetime.now()
+
+    s=Scheduler()
+    telescope_positions=s.make_list_of_best_tiles_through_the_night(date=date, time=time)
+    
+    t_end=datetime.datetime.now()
+    dt=t_end-t_start
+    print 'Total time: %d s (%.2f min)'%(dt.seconds, dt.seconds/60.0)
+    
+    #~ import matplotlib.pyplot as plt
+    #~ fig=plt.figure()
+    #~ ax=fig.add_subplot(111)
+    #~ ax.scatter(telescope_positions[:,2], telescope_positions[:,3], c='r')
+    #~ ax.scatter(telescope_positions[:,0], telescope_positions[:,1])
+    #~ ax.plot(telescope_positions[:,0], telescope_positions[:,1])
+    #~ plt.show()
 
 
 def test_tile_distribution_in_the_sky(filename):
@@ -1153,15 +1569,18 @@ if __name__ == "__main__":
     #~ dir = '/Users/mireland/Google Drive/FunnelWeb/TargetSelection/tiling_results/'
     #~ tiling_filename=dir + '171308_1647_fw_tiling.pkl'
     
+    # TODO: remove these filenames.
+    # It doesnt care about this names anymore.
     tiling_filename='171308_1647_fw_tiling.pkl'
     observed_tiles_filename='%s_observed_tiles.txt'%tiling_filename[:-4]
 
     """
     Run Scheduler
     """
-    #~ run_scheduler(tiling_filename, observed_tiles_filename)
+    #~ run_scheduler(tiling_filename, observed_tiles_filename, date='2017-11-04', time='16:42:42')
+    #~ run_scheduler()
     
-    observing_plan(tiling_filename, observed_tiles_filename, date='2017-10-23', time='02:42:42')
+    observing_plan(date='2017-11-04', time='02:42:42')
 
     
     """
