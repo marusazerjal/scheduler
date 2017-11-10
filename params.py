@@ -40,7 +40,7 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         # TODO: Should I include magnitude dependent Moon distances?
         'MOON_ANGDIST_MIN': 25.0, # Minimal acceptable distance
 
-        'TIME_PER_TILE': 240,#10 # [minutes], 10 minutes altogether per tile
+        'TIME_PER_TILE': 10,#10 # [minutes], 10 minutes altogether per tile
         'SLEW_TIME_MIN': 60.0, # [seconds], take slew time into consideration above this limit
 
         'TILE_DENSITY_RADIUS': 6.0, #deg, OBSOLETE; radius to compute observed tile surface density
