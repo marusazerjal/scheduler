@@ -24,30 +24,81 @@ If observation was UNsuccessfull, remove this tile from the temporary list. (But
 
 import numpy as np
 import datetime
+from collections import defaultdict
+
+# FunnelWeb
+import params
+
+reload(params)
 
 
-#~ observed_tiles_eternal_filename = '%s_observed_tiles.dat'%(tiling_filename[:-11])
-
-
-def news_from_Jeeves(success=None):
+def news_from_Jeeves(success=None, tile_id=None):
+    """
+    If observation was successfull, assign external tile_id and add it on the list of observed tiles.
+    Add this tile to pickle file of observed tiles.
+    Do nothing to internal list because observation was successfull.
+    """
     todo=True
+    
+    if success:
+        todo=True
+    
+def load_internal_list_of_observed_tile_ids_and_divide_into_mag_ranges(tiles):
+    """
+    tiles: tiling code pickle file. Need this for mag ranges.
+    """
+    td={x.field_id: x for x in tiles}
+    
+    filename=params.params['observed_tiles_internal_filename']
+
+    try:
+        data=np.loadtxt(filename, ndmin=1, comments='#')
+        data=[int(x) for x in data]
+
+        d = defaultdict(list)
+
+        # Split into magnitude ranges
+        for t in data:
+            x=td[t]
+            d[(float(x.mag_min), float(x.mag_max))].append(x)
+        d2={k: v for k, v in d.iteritems()} # because obs_tile_coo is defaultdict (creates new list in the dict if a key that does not exist yet is called)
+        
+        return d2
+
+    except:
+        return {}  
+    
+def load_internal_list_of_observed_tile_ids():
+    """
+    Load list of observed tile ids
+    """
+    filename=params.params['observed_tiles_internal_filename']
+
+    try:
+        data=np.loadtxt(filename, ndmin=1, comments='#')
+        data=[int(x) for x in data]
+        return data
+
+    except:
+        return []
+
 
 # Internal (temporary) list of observed tiles
-def add_tile_id_internal_to_the_list(tile_id_internal=None, filename=None):
+def add_tile_id_internal_to_the_list(tile_id_internal=None):
+    filename=params.params['observed_tiles_internal_filename']
+
     try:
         data=np.loadtxt(filename, ndmin=1)
-        data=[[int(x[0])] for x in data]
-        #~ data.append([tile_id_internal, mag_min, mag_max])
+        data=[int(x) for x in data]
         data.append(tile_id_internal)
     except:
-        #~ data=[tile_id_internal, mag_min, mag_max]
         data=[tile_id_internal]
         
     # TODO: later, when number of observed tiles becomes big, add only the last line. Do not overwrite file each time.
     f=open(filename, 'wb')
     for x in data:
         #~ f.write('%d %s %s \n'%(x[0], str(x[1]), str(x[2])))
-        f.write('%d \n'%x[0])
+        f.write('%d \n'%x)
     f.close()
 
 def remove_tile_id_internal_from_the_list(tile_id_internal=None, filename=None):
@@ -63,22 +114,16 @@ def remove_tile_id_internal_from_the_list(tile_id_internal=None, filename=None):
         # List of observed tiles was not created yet. Nothing to remove.
         pass
 
-#~ def combine_internal_and_external_list_of_observed_tiles(filename_internal=None, filename_external=None):
-    #~ # Internal
-    #~ try:
-        #~ datai=np.loadtxt(filename_internal, ndmin=1)
-        #~ datai=[int(x) for x in datai]
-    #~ except:
-        #~ pass 
 
-    #~ # External
-    #~ try:
-        #~ datae=np.loadtxt(filename_external, ndmin=1)
-        #~ datae=[int(x) for x in datae] # This should have two columns
-    #~ except:
-        #~ pass 
-
-
+def assign_external_tile_id(best_tile=None): # TODO: should this be kept here or in file manager?
+    tile_id_time = datetime.datetime.now()
+    # TODO: time should be in UTC (more universal + there is no problems with daylight savings time)
+    sign=0
+    if best_tile.TaipanTile.dec>0.0:
+        sign=1
+    tile_id = '%03d%01d%02d%04d%02d%02d%02d%02d'%(best_tile.TaipanTile.ra, sign, np.abs(best_tile.TaipanTile.dec), tile_id_time.year, tile_id_time.month, tile_id_time.day, tile_id_time.hour, tile_id_time.minute)
+    
+    return int(tile_id) 
 
 # External (eternal) list of observed tiles    
 def add_tile_id_to_the_list(tile_id=None, filename=None):
@@ -86,15 +131,7 @@ def add_tile_id_to_the_list(tile_id=None, filename=None):
     # We will probably need expusure time, weather info etc. as well.
 
    # Assign TILE ID
-    # RA, DEC, TIME
-    tile_id_time = datetime.datetime.now()
-    # TODO: time should be in UTC (more universal + there is no problems with daylight savings time)
-    sign=0
-    if best_tile.TaipanTile.dec>0.0:
-        sign=1
-    tile_id = '%03d%01d%02d%04d%02d%02d%02d%02d'%(best_tile.TaipanTile.ra, sign, np.abs(best_tile.TaipanTile.dec), tile_id_time.year, tile_id_time.month, tile_id_time.day, tile_id_time.hour, tile_id_time.minute)
-    # Time is the same for multiple tiles because code is faster than 1 minute. Correct that.
-    tile_id=int(tile_id)
+    tile_id=assign_external_tile_id(best_tile=None)
 
 
     try:
