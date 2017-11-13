@@ -56,12 +56,8 @@ class ObsTile():
         angular_moon_distance: Angular distance between the tile and the Moon, degrees
         """
         self.TaipanTile=tp
-        self.ra=tp.ra
-        self.dec=tp.dec
         self.lat=params.params['LAT']
-        self.altitude_low_fraction=params.params['ALTITUDE_LOW_FRACTION']
-        self.max_priority=max_priority
-        
+        self.max_priority=max_priority # To normalize ranking
         self.local_sidereal_time=local_sidereal_time
         self.moon=moon
         #~ self.observatory=observatory
@@ -74,7 +70,7 @@ class ObsTile():
         
         # These params could be set later, only for visible tiles
         self.alt_max=self.max_altitude_of_an_object_in_the_sky()
-        self.angular_moon_distance=self.distance_between_two_points_in_the_sky(alpha1=self.ra, delta1=self.dec, alpha2=self.moon.ra.value, delta2=self.moon.dec.value)
+        self.angular_moon_distance=self.distance_between_two_points_in_the_sky(alpha1=self.TaipanTile.ra, delta1=self.TaipanTile.dec, alpha2=self.moon.ra.value, delta2=self.moon.dec.value)
 
 
     @property
@@ -161,7 +157,7 @@ class ObsTile():
         if ra:
             H = self.local_sidereal_time - ra/15.0
         else:
-            H = self.local_sidereal_time - self.ra/15.0
+            H = self.local_sidereal_time - self.TaipanTile.ra/15.0
         if H>12:
             H=24.0-H
         if H<-12:
@@ -186,7 +182,7 @@ class ObsTile():
             dec=np.deg2rad(dec)
         else:
             hour_angle=np.deg2rad(self.hour_angle*15.0)
-            dec=np.deg2rad(self.dec)
+            dec=np.deg2rad(self.TaipanTile.dec)
         
         lat=np.deg2rad(self.lat)
         sin_h = np.cos(hour_angle)*np.cos(dec)*np.cos(lat) + np.sin(dec)*np.sin(lat)
@@ -203,7 +199,7 @@ class ObsTile():
         h: float, degrees
             Maximal altitute of the tile above horizon.        
         """
-        dec=np.deg2rad(self.dec)
+        dec=np.deg2rad(self.TaipanTile.dec)
         lat=np.deg2rad(self.lat)
         sin_h = np.cos(dec-lat)
         h=np.arcsin(sin_h)
@@ -216,16 +212,16 @@ class ObsTile():
         """
         Determine hour angle amplitude to estimate time when observing is still acceptable
         """
-        dec=np.deg2rad(self.dec)
+        dec=np.deg2rad(self.TaipanTile.dec)
         lat=np.deg2rad(self.lat)
         
         # If star is above the horizon (our 'horizon' is at ALT_MIN) at all times:
-        if self.lat+self.dec+ALT_MIN<-90.0:
-            distance_from_the_pole=(90.0+self.dec)# self.dec<0
+        if self.lat+self.TaipanTile.dec+ALT_MIN<-90.0:
+            distance_from_the_pole=(90.0+self.TaipanTile.dec)# self.dec<0
             alt_low=self.alt_max-2.0*distance_from_the_pole
-            h_good_low = alt_low + 2.0*distance_from_the_pole*self.altitude_low_fraction
+            h_good_low = alt_low + 2.0*distance_from_the_pole*params.params['ALTITUDE_LOW_FRACTION']
         else:
-            h_good_low = self.alt_max * self.altitude_low_fraction
+            h_good_low = self.alt_max * params.params['ALTITUDE_LOW_FRACTION']
 
         if h_good_low<ALT_MIN:
             h_good_low=ALT_MIN            
@@ -270,8 +266,8 @@ class ObsTile():
         alt_max=self.alt_max # altitude at local meridian
 
         # If star is above the horizon (our 'horizon' is at ALT_MIN) at all times:
-        if self.lat+self.dec+ALT_MIN<-90.0:
-            distance_from_the_pole=(90.0+self.dec)# self.dec<0
+        if self.lat+self.TaipanTile.dec+ALT_MIN<-90.0:
+            distance_from_the_pole=(90.0+self.TaipanTile.dec)# self.dec<0
             alt_min=alt_max-2.0*distance_from_the_pole
             w = float(alt-alt_min)/float(2.0*distance_from_the_pole)
         else:
