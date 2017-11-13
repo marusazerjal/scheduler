@@ -39,15 +39,13 @@ class ObsTile():
     """
     Observational parameters of a tile. This class makes no observational decisions, it only determines parameters.
     """
-    #~ @profile
-    def __init__(self, tp=None, local_sidereal_time=None, moon=None, observatory=None, ra_current=None, dec_current=None, max_priority=None):
+    def __init__(self, tp=None, local_sidereal_time=None, moon=None, max_priority=None):
         """
         Parameters
         ----------        
         TaipanTile:
         local_sidereal_time: Local sidereal time, hours
         moon: astropy moon object
-        observatory: astroplan observatory object
         
         max_priority: Maximal tile priority in the current tiling. Used for normalization.
         
@@ -61,14 +59,12 @@ class ObsTile():
         self.ra=tp.ra
         self.dec=tp.dec
         self.lat=params.params['LAT']
-        self.ra_current=ra_current
-        self.dec_current=dec_current
         self.altitude_low_fraction=params.params['ALTITUDE_LOW_FRACTION']
         self.max_priority=max_priority
         
         self.local_sidereal_time=local_sidereal_time
         self.moon=moon
-        self.observatory=observatory
+        #~ self.observatory=observatory
 
         """
         Compute observational parameters
@@ -97,7 +93,6 @@ class ObsTile():
         #~ string = 'TP TILE %d: RA=%3.1f, Dec=%2.1f, Ranking=%d, Altitude=%d, %d, %d, H=%.2f, Moon_dist=%d, mag_max=%d' % (self.TaipanTile.field_id, self.TaipanTile.ra, self.TaipanTile.dec, self.TaipanTile.priority, self.alt, self.alt_max, self.alt_diff, self.hour_angle, self.angular_moon_distance, self.TaipanTile.mag_max)
         #~ return string
 
-    #~ @profile
     def distance_between_two_points_in_the_sky(self, alpha1=None, delta1=None, alpha2=None, delta2=None):
         """
         Determine the distance between two points in the sky.
@@ -124,7 +119,6 @@ class ObsTile():
         A=np.rad2deg(A)
         return A # degrees
 
-    #~ @profile
     def determine_azimuth(self, ra=None, dec=None, alt=None, H=None):
         """
         Azimuth of the tile.
@@ -248,64 +242,20 @@ class ObsTile():
             H=None # TODO: how to treat |cosH|>1?? This is for circumpolar stars.
         return H
 
-            
-    #~ @profile
-    def weighting(self, tiles_mag_range=None, internal_observed_tiles_mag_range=None):
+    def weighting(self, nearest_neighbours=None, observed_tile_id_internal=None, tiles_mag_range=None, ra_current=None, dec_current=None):
         """
         Weighting between H (hour angle), Ranking (priority) and slew time.
         """
         w_altitude = self.weighting_altitude() # [0, 1]
-        w_slew_time = self.weighting_slew_time() # [0, 1]
-        w_moon = self.weighting_moon_distance()
-        w_density = self.weighting_field_density(tiles_mag_range=tiles_mag_range, internal_observed_tiles_mag_range=internal_observed_tiles_mag_range) # [0, 1]
-        w_mag_range = self.weighting_magnitude_range(observed_tile_id_internal=None, tiles_mag_range=tiles_mag_range)
-        
-        w_ranking = float(self.TaipanTile.priority) / float(self.max_priority) # [0, 1]
-        # Some tiles have ranking equal to 0. So we set probability to 0.5:
-        if w_ranking<1e-12:
-            w_ranking=0.5
-        
-        # Weighting 1
-        w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
-        
-        # Weighting 1.1, don't do this
-        #~ w = w_ranking**2 * w_altitude * w_slew_time * w_moon * w_density
-        
-        # Weighting 1.2
-        #~ w = w_ranking * w_altitude * w_slew_time * w_moon * w_density**6
-        
-        # Weighting 1.3
-        #~ w = w_ranking * w_altitude**2 * w_slew_time**2 * w_moon * w_density**6
-
-        # Weighting 2        
-        #~ w = w_ranking + w_altitude + w_slew_time + w_moon + w_density
-        #~ w = w/5.0
-
-        # Weighting 3, this is not OK because all the probabilities are very high
-        #~ if all(x > 0.0 for x in [w_ranking, w_altitude, w_slew_time, w_moon, w_density]):
-            #~ c=[10, 5, 5, 1, 10]
-            #~ w = c[0]*w_ranking + c[1]*w_altitude + c[2]*w_slew_time + c[3]*w_moon + c[4]*w_density
-            #~ w = w/np.sum(c)
-        #~ else:
-            #~ w=0.0
-        
-        self.weight = w
-            
-    #~ @profile
-    def weighting_knn(self, nearest_neighbours=None, observed_tile_id_internal=None, tiles_mag_range=None):
-        """
-        Weighting between H (hour angle), Ranking (priority) and slew time.
-        """
-        w_altitude = self.weighting_altitude() # [0, 1]
-        w_slew_time = self.weighting_slew_time() # [0, 1]
+        w_slew_time = self.weighting_slew_time(ra_current=ra_current, dec_current=dec_current) # [0, 1]
         w_moon = self.weighting_moon_distance() # [0, 1]
         w_density = self.weighting_field_density_knn(nearest_neighbours=nearest_neighbours, observed_tile_id_internal=observed_tile_id_internal) # [0, 1]
-        w_mag_range = 1.0#self.weighting_magnitude_range(observed_tile_id_internal=observed_tile_id_internal, tiles_mag_range=tiles_mag_range)
+        w_mag_range = self.weighting_magnitude_range(observed_tile_id_internal=observed_tile_id_internal, tiles_mag_range=tiles_mag_range)
         
         w_ranking = float(self.TaipanTile.priority) / float(self.max_priority) # [0, 1]
         # Some tiles have ranking equal to 0. So we set probability to 0.5:
-        if w_ranking<1e-12:
-            w_ranking=0.5
+        #~ if w_ranking<1e-12:
+            #~ w_ranking=0.5
         
         w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
 
@@ -341,14 +291,13 @@ class ObsTile():
             w=k*d+n
         return w 
 
-    #~ @profile
-    def weighting_slew_time(self):
+    def weighting_slew_time(self, ra_current=None, dec_current=None):
         """
         Slew time function: a maximum of angular distance and difference in azimuth.
         """       
         # Current position:
-        ra1=self.ra_current
-        dec1=self.dec_current
+        ra1=ra_current
+        dec1=dec_current
         
         # Next position:
         ra2=self.TaipanTile.ra
@@ -386,14 +335,13 @@ class ObsTile():
         mag_range=(self.TaipanTile.mag_min, self.TaipanTile.mag_max)
         tls=tiles_mag_range[mag_range]
 
-        n_observed=float(len([1 for x in tls if x.field_id in observed_tile_id_internal]))
+        n_observed=float(len(tls.intersection(observed_tile_id_internal)))        
         n_total=float(len(tls))
 
         w = 1.0 - n_observed / n_total
 
         return w
 
-    #~ @profile
     def weighting_field_density(self, tiles_mag_range=None, internal_observed_tiles_mag_range=None):
         """
         Determine local field density (for a particular magnitude range)
@@ -444,7 +392,6 @@ class ObsTile():
 
         return weight
 
-    #~ @profile
     def weighting_field_density_knn(self, nearest_neighbours=None, observed_tile_id_internal=None):
         """
         Determine local field density (for a particular magnitude range).
@@ -453,17 +400,14 @@ class ObsTile():
         
         nn=nearest_neighbours[self.TaipanTile.field_id]
         nn=nn[:params.params['K_NEAREST_NEIGHBOURS']]
-        #~ nn=[int(x[0]) for x in nn] # get rid of distances, keep only field_id
+        nn=set([int(x[0]) for x in nn]) # get rid of distances, keep only field_id
         
-        # Count observed tiles
-        number_of_observed_tiles=np.sum([1 for x in nn if int(x[0]) in observed_tile_id_internal])
+        number_of_observed_tiles=len(nn.intersection(observed_tile_id_internal))
 
         n_observed=float(number_of_observed_tiles)
         n_total=float(len(nn))
         
         weight = 1.0 - n_observed / n_total
-
-        #~ self.surface_density=[weight, n_observed, n_total]
 
         return weight
     

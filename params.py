@@ -38,7 +38,8 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         # But be careful: when moon is on the local meridian, what happens?
 
         # TODO: Should I include magnitude dependent Moon distances?
-        'MOON_ANGDIST_MIN': 25.0, # Minimal acceptable distance
+        'MOON_ANGDIST_MIN': 20.0, # Minimal acceptable distance
+        'MOON_ANGDIST_OK': 30.0, # Distance where sky illumination by the Moon is negligible
 
         'TIME_PER_TILE': 10,#10 # [minutes], 10 minutes altogether per tile
         'SLEW_TIME_MIN': 60.0, # [seconds], take slew time into consideration above this limit

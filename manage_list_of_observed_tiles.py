@@ -11,7 +11,6 @@ If later Jeeves confirms that this tile was observed successfully, generate TILE
 If observation was UNsuccessfull, remove this tile from the temporary list. (But I need to know its internal TILE ID!!)
 """
 
-
 """
 (1) From Scheduler: Receive internal TILE_ID_internal that was selected
 (2) Write TILE_ID_internal to a file
@@ -21,7 +20,6 @@ If observation was UNsuccessfull, remove this tile from the temporary list. (But
 (6) If observation was NOT successfull, remove TILE_ID_internal from the temporary list.
 """
 
-
 import numpy as np
 import datetime
 from collections import defaultdict
@@ -30,7 +28,6 @@ from collections import defaultdict
 import params
 
 reload(params)
-
 
 def news_from_Jeeves(success=None, tile_id=None):
     """
@@ -43,31 +40,6 @@ def news_from_Jeeves(success=None, tile_id=None):
     if success:
         todo=True
     
-def load_internal_list_of_observed_tile_ids_and_divide_into_mag_ranges(tiles):
-    """
-    tiles: tiling code pickle file. Need this for mag ranges.
-    """
-    td={x.field_id: x for x in tiles}
-    
-    filename=params.params['observed_tiles_internal_filename']
-
-    try:
-        data=np.loadtxt(filename, ndmin=1, comments='#')
-        data=[int(x) for x in data]
-
-        d = defaultdict(list)
-
-        # Split into magnitude ranges
-        for t in data:
-            x=td[t]
-            d[(float(x.mag_min), float(x.mag_max))].append(x)
-        d2={k: v for k, v in d.iteritems()} # because obs_tile_coo is defaultdict (creates new list in the dict if a key that does not exist yet is called)
-        
-        return d2
-
-    except:
-        return {}  
-    
 def load_internal_list_of_observed_tile_ids():
     """
     Load list of observed tile ids
@@ -76,31 +48,21 @@ def load_internal_list_of_observed_tile_ids():
 
     try:
         data=np.loadtxt(filename, ndmin=1, comments='#')
-        data=[int(x) for x in data]
+        data={int(x) for x in data}
         return data
 
     except:
-        return []
-
+        return set()
 
 # Internal (temporary) list of observed tiles
-def add_tile_id_internal_to_the_list(tile_id_internal=None):
+def add_tile_id_internal_to_the_list(data):
     filename=params.params['observed_tiles_internal_filename']
-
-    try:
-        data=np.loadtxt(filename, ndmin=1)
-        data=[int(x) for x in data]
-        data.append(tile_id_internal)
-    except:
-        data=[tile_id_internal]
-        
-    # TODO: later, when number of observed tiles becomes big, add only the last line. Do not overwrite file each time.
-    f=open(filename, 'wb')
+    f=open(filename, 'ab')
     for x in data:
-        #~ f.write('%d %s %s \n'%(x[0], str(x[1]), str(x[2])))
         f.write('%d \n'%x)
     f.close()
 
+# TODO: use sets instead of lists
 def remove_tile_id_internal_from_the_list(tile_id_internal=None, filename=None):
     try:
         data=np.loadtxt(filename, ndmin=1)
@@ -125,7 +87,8 @@ def assign_external_tile_id(best_tile=None): # TODO: should this be kept here or
     
     return int(tile_id) 
 
-# External (eternal) list of observed tiles    
+# External (eternal) list of observed tiles
+# TODO: just append. Do not read entire file.
 def add_tile_id_to_the_list(tile_id=None, filename=None):
     # We need to know some info about this tile. At least coordinates. Observing time as well.
     # We will probably need expusure time, weather info etc. as well.
