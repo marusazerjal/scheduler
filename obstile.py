@@ -60,7 +60,6 @@ class ObsTile():
         self.max_priority=max_priority # To normalize ranking
         self.local_sidereal_time=local_sidereal_time
         self.moon=moon
-        #~ self.observatory=observatory
 
         """
         Compute observational parameters
@@ -72,7 +71,7 @@ class ObsTile():
         self.alt_max=self.max_altitude_of_an_object_in_the_sky()
         self.angular_moon_distance=self.distance_between_two_points_in_the_sky(alpha1=self.TaipanTile.ra, delta1=self.TaipanTile.dec, alpha2=self.moon.ra.value, delta2=self.moon.dec.value)
 
-
+    # TODO: I don't think I need this.
     @property
     def local_sidereal_time(self):
         return self.local_sidereal_time
@@ -206,8 +205,6 @@ class ObsTile():
         h=np.rad2deg(h)
         return h
 
-        
-
     def estimate_best_time_interval_to_observe_tile(self):
         """
         Determine hour angle amplitude to estimate time when observing is still acceptable
@@ -337,56 +334,6 @@ class ObsTile():
         w = 1.0 - n_observed / n_total
 
         return w
-
-    def weighting_field_density(self, tiles_mag_range=None, internal_observed_tiles_mag_range=None):
-        """
-        Determine local field density (for a particular magnitude range)
-        """
-        ra=self.TaipanTile.ra # deg
-        dec=self.TaipanTile.dec # deg
-        
-        mag_range=(float(self.TaipanTile.mag_min), float(self.TaipanTile.mag_max))
-
-        try:
-            observed_tiles=internal_observed_tiles_mag_range[mag_range]
-        except:
-            observed_tiles=[]
-            
-        n=0
-        for x in observed_tiles: # TODO: make hour_angle exclusion loop (because after time number of observed tiles is going to grow (or perhaps not because new tiling will be generated each month)
-            if np.abs(ra-x.ra)<params.params['TILE_DENSITY_RADIUS'] and np.abs(dec-x.dec)<params.params['TILE_DENSITY_RADIUS']:
-                d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
-                if d<params.params['TILE_DENSITY_RADIUS']:
-                    n+=1
-        n_observed=float(n)
-
-
-        # All candidate tiles from the tiling code within tile_density_radius
-        n=0
-        for x in tiles_mag_range[mag_range]:
-            if np.abs(ra-x.ra)<params.params['TILE_DENSITY_RADIUS'] and np.abs(dec-x.dec)<params.params['TILE_DENSITY_RADIUS']:
-                d=self.distance_between_two_points_in_the_sky(alpha1=ra, delta1=dec, alpha2=x.ra, delta2=x.dec)
-                if d<params.params['TILE_DENSITY_RADIUS']:
-                    #~ print ra, x.ra, dec, x.dec
-                    n+=1
-        n_total=float(n)
-
-        
-        if n<0.5:
-            #~ test=np.array(sorted([[x.ra, x.dec] for x in tiles_mag_range[mag_range]], key=lambda x: x[0]))
-            #~ print test
-            for x in tiles_mag_range[mag_range]:
-                print x.ra, x.dec
-            pdb.set_trace()
-            
-            return 0.0 # apparently out of the range
-        
-        weight = 1.0 - n_observed / n_total
-
-        self.surface_density=[weight, n_observed, n_total]
-
-
-        return weight
 
     def weighting_field_density_knn(self, nearest_neighbours=None, observed_tile_id_internal=None):
         """

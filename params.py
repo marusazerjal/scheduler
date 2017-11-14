@@ -13,7 +13,7 @@ data_output_folder = 'data_output/'
 #~ tiling_filename=dir + '171308_1647_fw_tiling.pkl'
 
 
-# Supplementary params (if not given, default values will be assigned)
+#~ # Supplementary params (if not given, default values will be assigned)
 args={'date': '2017-11-10', # Default: today
         'time': '02:42:42' # Default: Now
         }

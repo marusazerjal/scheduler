@@ -67,7 +67,7 @@ class Scheduler():
     """
     Schedule FunnelWeb tile observations.
     """
-    def __init__(self, ra_current=None, dec_current=None):
+    def __init__(self):
         """
         Parameters
         ----------
@@ -79,36 +79,12 @@ class Scheduler():
             ra_current, dec_current
             weather
         """
-
-        # DATA
         self.tiles = TILES # TODO: do I now have 2 copies of TILES?
         self.determine_internal_tile_id_and_priorities()
         self.observed_tiles = manage_list_of_observed_tiles.load_internal_list_of_observed_tile_ids()
-        
         self.group_tiles_per_magnitude_range() # Need this for magnitude range weight determination
-        #~ self.tiles_mag_range=None # Because right now we dont take magnitude range weight into account
 
         self.observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
-
-        """
-        Current telescope position
-        """
-        if ra_current and dec_current:
-            self.ra_current=ra_current
-            self.dec_current=dec_current
-        else:
-            # Meridian at dec=-70 deg (-70 for no good reason. Can be something else).
-            self.ra_current=Time(Time.now(), format='iso', scale='utc').sidereal_time('mean', longitude=params.params['LON']).value*15.0
-            self.dec_current=-70.0
-
-        """
-        Weather
-        """
-        #~ self.weather_conditions()
-        #~ if weather_data_filename:
-            #~ self.weather_data=np.loadtxt(weather_data_filename) # STRING!!
-        #~ else:
-            #~ self.weather_data=None
 
     def determine_internal_tile_id_and_priorities(self):
         """
@@ -137,7 +113,15 @@ class Scheduler():
 
         self.moon = get_moon(self.utc)
 
+        #~ self.weather_conditions()
+        #~ if weather_data_filename:
+            #~ self.weather_data=np.loadtxt(weather_data_filename) # STRING!!
+        #~ else:
+            #~ self.weather_data=None
+
         # Telescope position from Jeeves
+        self.ra_current=ra_current
+        self.dec_current=dec_current
         if ra_current is None:
             self.ra_current=self.local_sidereal_time
         if dec_current is None:
@@ -148,6 +132,7 @@ class Scheduler():
         # Update list of observed tiles
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
         
+        # TODO: what should be a format for Jeeves?
         return best_tile
 
     def observing_plan(self, date=None, time=None):
@@ -192,7 +177,7 @@ class Scheduler():
             else:
                 break
         
-        print 'Selecting tiles for ', date
+        print 'Selecting tiles for', date
         timezone_correction=TimeDelta(3600.0*11.0, format='sec')
         sunset_lt=self.observatory.datetime_to_astropy_time(sun_set) + timezone_correction
         sunrise_lt=self.observatory.datetime_to_astropy_time(sun_rise) + timezone_correction
@@ -202,7 +187,7 @@ class Scheduler():
         dark_time_minutes = (dark_time - float(dark_time_hours)*3600.0)/60.0
         print 'Sunset LT %d-%02d-%02d %02d:%02d'%(sunset_lt.value.year, sunset_lt.value.month, sunset_lt.value.day, sunset_lt.value.hour, sunset_lt.value.minute)
         print 'Sunrise LT %d-%02d-%02d %02d:%02d'%(sunrise_lt.value.year, sunrise_lt.value.month, sunrise_lt.value.day, sunrise_lt.value.hour, sunrise_lt.value.minute)
-        print 'Nighttime %02d:%02d'%(dark_time_hours, dark_time_minutes)
+        print 'Nighttime duration %02d:%02d'%(dark_time_hours, dark_time_minutes)
         print 'Number of tiles this night:', len(times)
         print
         
@@ -225,6 +210,7 @@ class Scheduler():
                 self.dec_current=best_tile.TaipanTile.dec
             except:
                 self.ra_current=lst
+                self.dec_current=-70.0 # TODO
 
             self.local_sidereal_time=lst # TODO: check if this violates any other things. Why cant I insert LST to init_best_tiles...??
   
@@ -278,8 +264,8 @@ class Scheduler():
         
         print 'Average time to find the next tile: [seconds]', np.mean(time_efficiency)
         
-        telescope_positions=np.array(telescope_positions)
-        return telescope_positions
+        #~ telescope_positions=np.array(telescope_positions)
+        #~ return telescope_positions
 
     def find_best_tile(self):
         """
@@ -506,7 +492,7 @@ def observing_plan(date=None, time=None):
     t_start=datetime.datetime.now()
 
     s=Scheduler()
-    telescope_positions=s.observing_plan(date=date, time=time)
+    s.observing_plan(date=date, time=time)
     
     t_end=datetime.datetime.now()
     dt=t_end-t_start
@@ -517,8 +503,8 @@ if __name__ == "__main__":
     """
     Run Scheduler
     """
-    #~ next_tile()
+    next_tile()
     
     #~ observing_plan(date='2017-11-04', time='02:42:42')
     #~ observing_plan(date='2017-11-03') # default: tonight
-    observing_plan() # default: tonight
+    #~ observing_plan() # default: tonight
