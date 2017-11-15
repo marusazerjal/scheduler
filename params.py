@@ -7,28 +7,20 @@ Params file for FunnelWeb Scheduler
 # Input tiling file (including path to this tile):
 input_tiling_filename_folder = 'data_input/'
 input_tiling_filename = '171308_1647_fw_tiling.pkl'
+#~ input_tiling_filename = '170509_1943_fw_tiling.pkl' # 600mb
 data_output_folder = 'data_output/'
 
-#~ dir = '/Users/mireland/Google Drive/FunnelWeb/TargetSelection/tiling_results/'
-#~ tiling_filename=dir + '171308_1647_fw_tiling.pkl'
-
-
-#~ # Supplementary params (if not given, default values will be assigned)
-args={'date': '2017-11-10', # Default: today
-        'time': '02:42:42' # Default: Now
-        }
-
-# todo: assign time here
-
+#~ input_tiling_filename_folder= '/Users/mireland/Google Drive/FunnelWeb/TargetSelection/tiling_results/'
 
 """
 CONSTANTS
 """
 params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_tiling_filename),
+        'nearest_neighbours_filename': '%snearest_neighbours_%s.pkl'%(data_output_folder, input_tiling_filename[:-11]),
         'observed_tiles_internal_filename': '%s%s_observed_tiles_internal.dat'%(data_output_folder, input_tiling_filename[:-11]),
         'observed_tiles_external_filename': '%s%s_observed_tiles_external.dat'%(data_output_folder, input_tiling_filename[:-11]),
-        'observing_plan_filename': '%sobserving_plan_%s.dat'%(data_output_folder, args['date']),
-        'nearest_neighbours_filename': '%snearest_neighbours_%s.pkl'%(data_output_folder, input_tiling_filename[:-11]),
+        'observing_plan_filename': '%sobserving_plan'%(data_output_folder),
+        'obs_config_json_folder': 'observers_files/funnelweb/',
         
         'ALT_MIN': 27.0, # Minimal altitude of the tile good to observe
         'ALT_MAX': 85.0, # Maximal altitude of the tile good to observe
@@ -46,6 +38,9 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
 
         'TILE_DENSITY_RADIUS': 6.0, #deg, OBSOLETE; radius to compute observed tile surface density
         'K_NEAREST_NEIGHBOURS': 15, # Number of nearest neighbours to consider instead of TILE_DENSITY_RADIUS
+        
+        'N_BEST_TILES_MERIDIAN': 10, # Select tile closest to the meridian among the first N_BEST_TILES_MERIDIAN tiles.
+        'CONSIDER_TILES_ABOVE_THIS_WEIGHT': 0.95,
 
         # Siding Spring Observatory
         # TODO: this data is automatic result from Google. Check if it is correct.

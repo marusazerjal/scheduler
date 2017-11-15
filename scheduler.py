@@ -21,6 +21,7 @@ import taipan.core as tp
 import manage_list_of_observed_tiles
 import params
 import obstile
+import create_obs_config_json
 import visualization
 
 """
@@ -29,6 +30,7 @@ Load the tiling data
 reload(manage_list_of_observed_tiles)
 reload(params)
 reload(obstile)
+reload(create_obs_config_json)
 reload(visualization)
 
 print 'Input tiling file', params.params['input_tiling_filename']
@@ -102,7 +104,7 @@ class Scheduler():
         self.max_priority=np.max(priorities)
 
     # TODO
-    def next_tile(self, ra_current=None, dec_current=None):
+    def next_tile(self, ra_current=None, dec_current=None, weather=None):
         """
         Find the next tile to be observed. This is what Jeeves is going to call each time.
         Add ra_current and dec_current (and weather). This is how Jeeves is going to call this method.
@@ -131,11 +133,13 @@ class Scheduler():
 
         # Update list of observed tiles
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
+
+        create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc)
         
         # TODO: what should be a format for Jeeves?
         return best_tile
 
-    def observing_plan(self, date=None, time=None):
+    def observing_plan(self, date=None):
         """
         Make a list of best tiles observable through the night.
         
@@ -154,18 +158,17 @@ class Scheduler():
         if date is None:
             datenow=datetime.datetime.now().date()
             date='%d-%02d-%02d'%(datenow.year, datenow.month, datenow.day)
+            datestring=date.replace('-', '')
             date = Time('%s'%date)
+        else:
+            datestring=date.replace('-', '')
 
         sun_set = self.observatory.sun_set_time(Time(date)).datetime
         sunset=self.observatory.datetime_to_astropy_time(sun_set) # converts into different format (datetime to astropy)
-        if time is not None:
-            todo=True
-            # If time > sunset: continue from 'time' on.
-            # In case observing plan is re-run during the night.
         
         sun_rise = self.observatory.sun_rise_time(Time(date) + TimeDelta(1.0, format='jd')).datetime
         
-        f=open(params.params['observing_plan_filename'], 'wb')
+        f=open(params.params['observing_plan_filename']+'_%s.dat'%datestring, 'wb')
 
         # UTC times
         times=[]
@@ -224,12 +227,11 @@ class Scheduler():
             Code from this point on is only output formatting
             """
 
+            json_filename = create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=utc)
+
             local_time=t+datetime.timedelta(hours=11.0)
             
             print '%02d/%02d'%(count, len(times)), 'LT=%d-%02d-%02d %02d:%02d:%02d'%(local_time.year, local_time.month, local_time.day, local_time.hour, local_time.minute, local_time.second), 'UT=%d-%02d-%02d %02d:%02d:%02d'%(times[count-1].year, times[count-1].month, times[count-1].day, times[count-1].hour, times[count-1].minute, times[count-1].second), 'LST=%s'%(('%02.2f'%lst).rjust(5)), best_tile #, best_tile.meridian_transit_time.datetime
-
-            telescope_positions.append([best_tile.TaipanTile.ra, best_tile.TaipanTile.dec, self.moon.ra.value, self.moon.dec.value, best_tile.angular_moon_distance])
-            
 
             # Print out the data
             H_amp = best_tile.estimate_best_time_interval_to_observe_tile()
@@ -245,7 +247,9 @@ class Scheduler():
             """
             Print output
             """
-            line='%02d%02d %02d%02d %02d%02d %05d /observers_files/funnelweb/YYYYMMDD/%05d_HHMMSS.obs_config.json'%(t.hour, t.minute, observing_start.hour, observing_start.minute, observing_stop.hour, observing_stop.minute, best_tile.TaipanTile.field_id, best_tile.TaipanTile.field_id)
+            line='%02d%02d %02d%02d %02d%02d %05d %s'%(t.hour, t.minute, observing_start.hour, observing_start.minute, observing_stop.hour, observing_stop.minute, best_tile.TaipanTile.field_id, json_filename)
+            
+            #~ self.print_selected_tile_to_json(line)
            
             # TODO: what happens with observing_ideal for tiles at ALT=90? Because there is a limit at 85 degrees.
             f.write(line+'\n')
@@ -256,6 +260,7 @@ class Scheduler():
             time_efficiency.append((t_end-t_start).seconds)
             
             # PLOT
+            #~ telescope_positions.append([best_tile.TaipanTile.ra, best_tile.TaipanTile.dec, self.moon.ra.value, self.moon.dec.value, best_tile.angular_moon_distance])
             #~ visualization.plot_selected_tile_with_neighbourhood(moon=self.moon, lst=lst, best_tiles=self.best_tiles_to_observe_now, tiles=self.tiles, best_tile=best_tile, i=count-1, ra_current=self.ra_current, dec_current=self.dec_current, telescope_positions=telescope_positions, observed_tile_ids=self.observed_tiles)            
             
         f.close()
@@ -263,9 +268,6 @@ class Scheduler():
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list(new_tile_ids_to_be_added_to_list_of_all_observed_stars)
         
         print 'Average time to find the next tile: [seconds]', np.mean(time_efficiency)
-        
-        #~ telescope_positions=np.array(telescope_positions)
-        #~ return telescope_positions
 
     def find_best_tile(self):
         """
@@ -294,10 +296,29 @@ class Scheduler():
             x.weighting(nearest_neighbours=NN, observed_tile_id_internal=self.observed_tiles, tiles_mag_range=self.tiles_mag_range, ra_current=self.ra_current, dec_current=self.dec_current)
         
         b = sorted(self.best_tiles_to_observe_now, key=lambda y: y.weight, reverse=True)
+        
+        # All tiles considered
         self.best_tiles_to_observe_now=b
         
+        
         # Get data
-        best_tile=self.best_tiles_to_observe_now[0]
+        w_max=b[0].weight
+        w_min=w_max*params.params['CONSIDER_TILES_ABOVE_THIS_WEIGHT']#0.95
+        b1=[x for x in b if x.weight>w_min]
+        
+
+        # Out of the best N tiles select one closest to the meridian
+        #~ b0=b[:params.params['N_BEST_TILES_MERIDIAN']]
+        
+        bb=b1[0]
+        Hmin=1000.0
+        for x in b1:
+            if x.hour_angle<Hmin:
+                bb=x
+                Hmin=x.hour_angle
+
+        #~ best_tile=self.best_tiles_to_observe_now[0]
+        best_tile=bb
         return best_tile        
 
     def group_tiles_per_magnitude_range(self):
@@ -446,26 +467,6 @@ class Scheduler():
         #~ print 'seeing, sky_transparency', seeing, sky_transparency
         print 'sky_transparency', sky_transparency
 
-    def print_selected_tile_to_json(self):
-        """
-        Generate dictionary of output data and write to a json file.
-        """
-        # Generate dictionary
-        t = self.best_tiles_to_observe_now[0]
-        data={
-        'tile_id': t.TaipanTile.field_id
-        }
-        #~ 'TaipanTile': t.TaipanTile # Class is not serializable
-        
-        # Write
-        # Each time add timestamp to json file. Is this a good idea? Because then Jeeves has to search for the latest filename each time.
-        timestamp=self.utc.value.replace(' ', '--')
-        filename='selected_tile_%s.json'%timestamp
-        with open(filename, 'w') as outfile:  
-            json.dump(data, outfile)    
-        print '%s created.'%filename
-
-
 """
 -------------------
 Tests
@@ -484,7 +485,7 @@ def next_tile():
     best_tile = s.next_tile()
     print best_tile  
 
-def observing_plan(date=None, time=None):
+def observing_plan(date=None):
     """
     Run observing plan for testing purposes.
     """
@@ -492,7 +493,7 @@ def observing_plan(date=None, time=None):
     t_start=datetime.datetime.now()
 
     s=Scheduler()
-    s.observing_plan(date=date, time=time)
+    s.observing_plan(date=date)
     
     t_end=datetime.datetime.now()
     dt=t_end-t_start
@@ -503,8 +504,7 @@ if __name__ == "__main__":
     """
     Run Scheduler
     """
-    next_tile()
+    #~ next_tile()
     
-    #~ observing_plan(date='2017-11-04', time='02:42:42')
-    #~ observing_plan(date='2017-11-03') # default: tonight
+    observing_plan(date='2017-11-03') # default: tonight
     #~ observing_plan() # default: tonight
