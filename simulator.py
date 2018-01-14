@@ -56,6 +56,10 @@ def find_dates_to_observe():
         
         # Overcast
         ti=int(t.month)
+        print '***', t
+        print t.month
+        print ti
+        print
         if random.random()>clouds_stats[ti]: # TODO: include more detailed monthly weather statistics
             p2=True
         else:
