@@ -135,11 +135,17 @@ class Scheduler():
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
 
         create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc)
+ 
+ 
+        #~ # PLOT
+        #~ telescope_positions=[best_tile.TaipanTile.ra, best_tile.TaipanTile.dec, self.moon.ra.value, self.moon.dec.value, best_tile.angular_moon_distance]
+        #~ visualization.plot_selected_tile_with_neighbourhood(moon=self.moon, lst=self.local_sidereal_time, best_tiles=self.best_tiles_to_observe_now, tiles=self.tiles, best_tile=best_tile, i=1, ra_current=self.ra_current, dec_current=self.dec_current, telescope_positions=telescope_positions, observed_tile_ids=self.observed_tiles) 
+ 
         
         # TODO: what should be a format for Jeeves?
         return best_tile
 
-    def observing_plan(self, date=None):
+    def observing_plan(self, date=None, remove_twilight=False):
         """
         Make a list of best tiles observable through the night.
         
@@ -168,9 +174,17 @@ class Scheduler():
         
         sun_rise = self.observatory.sun_rise_time(Time(date) + TimeDelta(1.0, format='jd')).datetime
         
+        # Remove twilight time. Approx 1.5 hour.
+        # Remove for simulator. But not for the real observing plans.
+        if remove_twilight:
+            print 'No observations during twilight.'
+            sun_set += datetime.timedelta(minutes=90.0)
+            sun_rise -+ datetime.timedelta(minutes=90.0)
+            sunset=self.observatory.datetime_to_astropy_time(sun_set) # converts into different format (datetime to astropy)
+        
         f=open(params.params['observing_plan_filename']+'_%s.dat'%datestring, 'wb')
 
-        # UTC times
+        # UTC times when we want to observe each tile
         times=[]
         for i in range(100):
             dt = datetime.timedelta(minutes=i*params.params['TIME_PER_TILE'])
@@ -302,21 +316,18 @@ class Scheduler():
         
         
         # Get data
+        # Investigate best 5% ob the tiles and take the one closest to the local meridian
         w_max=b[0].weight
-        w_min=w_max*params.params['CONSIDER_TILES_ABOVE_THIS_WEIGHT']#0.95
+        w_min=w_max*params.params['CONSIDER_TILES_ABOVE_THIS_WEIGHT']
         b1=[x for x in b if x.weight>w_min]
-        
 
-        # Out of the best N tiles select one closest to the meridian
-        #~ b0=b[:params.params['N_BEST_TILES_MERIDIAN']]
-        
-        bb=b1[0]
+        bb=b[0]
         Hmin=1000.0
         for x in b1:
-            if x.hour_angle<Hmin:
+            if np.abs(x.hour_angle)<Hmin:
                 bb=x
-                Hmin=x.hour_angle
-
+                Hmin=np.abs(x.hour_angle)
+        
         #~ best_tile=self.best_tiles_to_observe_now[0]
         best_tile=bb
         return best_tile        
@@ -483,9 +494,13 @@ def next_tile():
     s=Scheduler()
 
     best_tile = s.next_tile()
-    print best_tile  
+    print best_tile
+    
+    print
+    for x in s.best_tiles_to_observe_now[:30]:
+        print x
 
-def observing_plan(date=None):
+def observing_plan(date=None, remove_twilight=False):
     """
     Run observing plan for testing purposes.
     """
@@ -493,7 +508,7 @@ def observing_plan(date=None):
     t_start=datetime.datetime.now()
 
     s=Scheduler()
-    s.observing_plan(date=date)
+    s.observing_plan(date=date, remove_twilight=remove_twilight)
     
     t_end=datetime.datetime.now()
     dt=t_end-t_start
@@ -504,7 +519,7 @@ if __name__ == "__main__":
     """
     Run Scheduler
     """
-    #~ next_tile()
+    next_tile()
     
-    observing_plan(date='2017-11-03') # default: tonight
+    #~ observing_plan(date='2017-11-03') # default: tonight
     #~ observing_plan() # default: tonight

@@ -4,14 +4,27 @@ Create FunnelWeb ObsConfig.json file for a selected tile.
 import os
 import errno
 import numpy as np
-import json
+import simplejson as json
 
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
+#~ from json import encoder
+#~ encoder.FLOAT_REPR = lambda o: format(o, '.4f')
+from decimal import Decimal
+
 import params
 
 reload(params)
+
+#~ class DecimalEncoder(json.JSONEncoder):
+    #~ def _iterencode(self, o, markers=None):
+        #~ if isinstance(o, decimal.Decimal):
+            #~ # wanted a simple yield str(o) in the next line,
+            #~ # but that would mean a yield on the line with super(...),
+            #~ # which wouldn't work (see my comment below), so...
+            #~ return (str(o) for o in [o])
+        #~ return super(DecimalEncoder, self)._iterencode(o, markers)
 
 def create_ObsConfig_json(tile=None, utc=None):
     tile=tile.TaipanTile
@@ -24,15 +37,15 @@ def create_ObsConfig_json(tile=None, utc=None):
     targets=[]
     for x in tile.get_assigned_targets_science():
         ra, dec = format_coordinates(x.ra, x.dec)
-        targets.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": x.mag})
+        targets.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))}) # Decimal(str(x.mag))
 
     guides=[]
     for x in tile.get_assigned_targets_guide():
         ra, dec = format_coordinates(x.ra, x.dec)
-        guides.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": x.mag})
+        guides.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))})
     
     # What does sky need 'mag'?
-    sky=[{'sbID': fibres[x], 'ra': "02:41:04.8", "dec": "-08:15:21", "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": x.mag} for x in tile.get_assigned_targets_guide()]
+    sky=[{'sbID': fibres[x], 'ra': "02:41:04.8", "dec": "-08:15:21", "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))} for x in tile.get_assigned_targets_guide()]
     
     # is utc time right now or when this tile is supposed to be observed?
     utc=str(utc)
@@ -119,9 +132,13 @@ def create_ObsConfig_json(tile=None, utc=None):
         if e.errno != errno.EEXIST:
             raise
     
+    #~ print 'Printing json data'
+    #~ print data
+    
     filename = folder + '%d_%s.obs_config.json'%(tile.field_id, t)
     with open(filename, 'w') as outfile:  
-        json.dump(data, outfile, indent=4, sort_keys=True)    
+        #~ print data
+        json.dump(data, outfile, indent=4, sort_keys=True)    # , cls=DecimalEncoder
     print '%s created.'%filename
     
     return filename

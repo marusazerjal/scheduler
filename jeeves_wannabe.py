@@ -3,6 +3,7 @@ This is how Jeeves is going to call FunnelWeb Scheduler each time to select the 
 """
 
 import scheduler
+reload(scheduler)
 
 # Current telescope position
 # This is going to be set by Jeeves

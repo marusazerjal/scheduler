@@ -15,8 +15,8 @@ import astropy.units as u
 from astroplan import Observer
 from astroplan import FixedTarget
 
-import line_profiler
-import pdb
+#~ import line_profiler
+#~ import pdb
 
 import taipan.core as tp
 
@@ -277,7 +277,7 @@ class ObsTile():
         if d<MOON_ANGDIST_MIN:
             w=0.0
         elif d>MOON_ANGDIST_OK:
-            w=1
+            w=1.0
         else:
             k=(1.0-0.5)/(MOON_ANGDIST_OK-MOON_ANGDIST_MIN)
             n=0.5-k*MOON_ANGDIST_MIN

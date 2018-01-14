@@ -22,8 +22,6 @@ def plot_selected_tile_with_neighbourhood(moon=None, lst=None, best_tiles=None, 
     w=np.array([x if x[0]<180 else [x[0]-360.0, x[1], x[2]] for x in w])
     w=np.array(sorted(w, key=lambda y: y[2]))
     
-    
-    telescope_positions=np.array([[x[0] if x[0]<180 else x[0]-360.0, x[1]] for x in telescope_positions])
 
     # Tiles already observed
     observed=np.array([[x.ra, x.dec] for x in tiles if x.field_id in observed_tile_ids])
@@ -54,10 +52,14 @@ def plot_selected_tile_with_neighbourhood(moon=None, lst=None, best_tiles=None, 
     ax.scatter(observed[:,0], observed[:,1], c='k')
     
     # Current telescope position
-    ctp=[ra_current if ra_current<180.0 else ra_current-360.0, dec_current]
+    #~ ctp=[ra_current if ra_current<180.0 else ra_current-360.0, dec_current]
     #~ ax.scatter(ctp[0], ctp[1], c='None', edgecolor='k', s=150)
-    ax.scatter(telescope_positions[:,0], telescope_positions[:,1], c='None', edgecolor='k', s=150)
-    ax.plot(telescope_positions[:,0], telescope_positions[:,1], c='k')
+    try:
+        telescope_positions=np.array([[x[0] if x[0]<180 else x[0]-360.0, x[1]] for x in telescope_positions])
+        ax.scatter(telescope_positions[:,0], telescope_positions[:,1], c='None', edgecolor='k', s=150)
+        ax.plot(telescope_positions[:,0], telescope_positions[:,1], c='k')
+    except:
+        pass
 
     
     bt=[best_tile.TaipanTile.ra if best_tile.TaipanTile.ra<180.0 else best_tile.TaipanTile.ra-360.0, best_tile.TaipanTile.dec]

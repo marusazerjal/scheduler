@@ -39,6 +39,19 @@ def news_from_Jeeves(success=None, tile_id=None):
     
     if success:
         todo=True
+        # generate external tilename
+        # Save tile pkl and external tilename
+        # Update list of observed stars
+    else:
+        todo=True
+        # remove tile from internal list
+
+def generate_external_tileid():
+    """
+    Generate UNIQUE external tile_id, made of coordinates and time observed. This was it is going to be unique as time is unique.
+    """
+    todo=True
+    
     
 def load_internal_list_of_observed_tile_ids():
     """

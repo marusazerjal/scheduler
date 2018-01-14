@@ -6,9 +6,11 @@ Params file for FunnelWeb Scheduler
 
 # Input tiling file (including path to this tile):
 input_tiling_filename_folder = 'data_input/'
-input_tiling_filename = '171308_1647_fw_tiling.pkl'
+#~ input_tiling_filename = '171308_1647_fw_tiling.pkl'
+input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
 #~ input_tiling_filename = '170509_1943_fw_tiling.pkl' # 600mb
-data_output_folder = 'data_output/'
+#~ data_output_folder = 'data_output/'
+data_output_folder = 'data_output_simulator/'
 
 #~ input_tiling_filename_folder= '/Users/mireland/Google Drive/FunnelWeb/TargetSelection/tiling_results/'
 
@@ -39,7 +41,7 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         'TILE_DENSITY_RADIUS': 6.0, #deg, OBSOLETE; radius to compute observed tile surface density
         'K_NEAREST_NEIGHBOURS': 15, # Number of nearest neighbours to consider instead of TILE_DENSITY_RADIUS
         
-        'N_BEST_TILES_MERIDIAN': 10, # Select tile closest to the meridian among the first N_BEST_TILES_MERIDIAN tiles.
+        #~ 'N_BEST_TILES_MERIDIAN': 10, # Select tile closest to the meridian among the first N_BEST_TILES_MERIDIAN tiles.
         'CONSIDER_TILES_ABOVE_THIS_WEIGHT': 0.95,
 
         # Siding Spring Observatory
@@ -47,5 +49,3 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         'LAT': -31.2749, # deg South
         'LON': 149.0685 # deg East
         }
-
-
