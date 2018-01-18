@@ -8,7 +8,7 @@ Params file for FunnelWeb Scheduler
 input_tiling_filename_folder = 'data_input/'
 #~ input_tiling_filename = '171308_1647_fw_tiling.pkl'
 input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
-#~ input_tiling_filename = '170509_1943_fw_tiling.pkl' # 600mb
+#~ input_tiling_filename = '180901_0526_34_fw_tiling.pkl' # with FW input catalogue
 #~ data_output_folder = 'data_output/'
 data_output_folder = 'data_output_simulator/'
 
@@ -47,5 +47,6 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         # Siding Spring Observatory
         # TODO: this data is automatic result from Google. Check if it is correct.
         'LAT': -31.2749, # deg South
-        'LON': 149.0685 # deg East
+        'LON': 149.0685, # deg East
+        'EL': 1164.0 # m, elevation
         }

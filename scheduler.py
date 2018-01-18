@@ -13,6 +13,10 @@ from collections import defaultdict
 from astropy.time import Time
 from astropy.time import TimeDelta
 from astropy.coordinates import get_moon
+from astropy.coordinates import AltAz
+from astropy.coordinates import EarthLocation
+from astropy import units as u
+
 from astroplan import Observer
 
 import taipan.core as tp
@@ -87,7 +91,8 @@ class Scheduler():
         self.group_tiles_per_magnitude_range() # Need this for magnitude range weight determination
 
         self.observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
-
+        self.location = EarthLocation(lat=params.params['LAT']*u.deg, lon=params.params['LON']*u.deg, height=params.params['EL']*u.m)
+        
     def determine_internal_tile_id_and_priorities(self):
         """
         Determine internal field_id and priority.
@@ -145,7 +150,7 @@ class Scheduler():
         # TODO: what should be a format for Jeeves?
         return best_tile
 
-    def observing_plan(self, date=None, remove_twilight=False):
+    def observing_plan(self, date=None, remove_twilight=False, bright_time=False):
         """
         Make a list of best tiles observable through the night.
         
@@ -195,7 +200,7 @@ class Scheduler():
                 break
         
         print 'Selecting tiles for', date
-        timezone_correction=TimeDelta(3600.0*11.0, format='sec')
+        timezone_correction=TimeDelta(3600.0*11.0, format='sec') # TODO
         sunset_lt=self.observatory.datetime_to_astropy_time(sun_set) + timezone_correction
         sunrise_lt=self.observatory.datetime_to_astropy_time(sun_rise) + timezone_correction
         dark_time = sun_rise-sun_set
@@ -221,6 +226,14 @@ class Scheduler():
             t_start=datetime.datetime.now()      
             utc = self.observatory.datetime_to_astropy_time(t)
             self.moon = get_moon(utc)
+
+            # ONLY BRIGHT TIME
+            if bright_time:
+                is_bright_time = self.check_if_moon_is_above_horizon(moon=self.moon, time=utc)
+                if is_bright_time:
+                    pass
+                else:
+                    continue
 
             try:
                 self.ra_current=best_tile.TaipanTile.ra
@@ -282,6 +295,14 @@ class Scheduler():
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list(new_tile_ids_to_be_added_to_list_of_all_observed_stars)
         
         print 'Average time to find the next tile: [seconds]', np.mean(time_efficiency)
+
+    def check_if_moon_is_above_horizon(self, moon=None, time=None):
+        frame = AltAz(obstime=time, location=self.location)
+        moonaltazs = moon.transform_to(frame)
+        if moonaltazs.alt > 0.0:
+            return True
+        else:
+            return False
 
     def find_best_tile(self):
         """

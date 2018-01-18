@@ -14,6 +14,7 @@ import matplotlib.pylab as plt
 
 from astropy.time import Time
 from astroplan.moon import moon_illumination
+from astropy.coordinates import get_moon
 
 import params_simulator
 reload(params_simulator)
@@ -47,23 +48,27 @@ def find_dates_to_observe():
         t=params_simulator.params['date_start'] + timedelta(days=i)
         ts=str(t)
         
+        # Moon position
+        # Make smaller time steps. In hours.
+        #~ utc = Time(Time.now(), format='iso', scale='utc')
+        #~ moon = get_moon(utc)
+        
         # Moon phase
-        moon_phase=moon_illumination(Time(ts))
-        if moon_phase>params_simulator.params['MIN_MOON_PHASE_TO_OBSERVE']:
-            p1=True
-        else:
-            p1=False
+        #~ moon_phase=moon_illumination(Time(ts))
+        #~ if moon_phase>params_simulator.params['MIN_MOON_PHASE_TO_OBSERVE']:
+            #~ p1=True
+        #~ else:
+            #~ p1=False
+        p1=True
         
         # Overcast
-        ti=int(t.month)
-        print '***', t
-        print t.month
-        print ti
-        print
+        ti=int(t.month)-1 # start with 0 in array)
         if random.random()>clouds_stats[ti]: # TODO: include more detailed monthly weather statistics
             p2=True
         else:
             p2=False
+        
+        print p2
         
         # Dome closed due to technical and other issues
         if random.random()>params_simulator.params['technical_issues_rate']:
@@ -87,6 +92,7 @@ def simulate():
     s=scheduler.Scheduler()
     f=open(params_simulator.params['simulate_dates_file'], 'wb')
     for date in dates:
+        print
         print 'START NIGHT:', date
         f.write(date.replace('-', '')+'\n')
         
@@ -94,7 +100,7 @@ def simulate():
         #~ if os.path.isdir("/home/el")):
             #~ continue
         
-        s.observing_plan(date=date, remove_twilight=True)
+        s.observing_plan(date=date, remove_twilight=True, bright_time=True)
 
         # Seeing
         #~ seeing=random.gauss(2.0, 1.0) # Maybe gauss is not the best distribution
