@@ -7,8 +7,8 @@ Params file for FunnelWeb Scheduler
 # Input tiling file (including path to this tile):
 input_tiling_filename_folder = 'data_input/'
 #~ input_tiling_filename = '171308_1647_fw_tiling.pkl'
-input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
-#~ input_tiling_filename = '180901_0526_34_fw_tiling.pkl' # with FW input catalogue
+#~ input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
+input_tiling_filename = '180901_0526_34_fw_tiling.pkl' # with FW input catalogue
 #~ data_output_folder = 'data_output/'
 data_output_folder = 'data_output_simulator/'
 

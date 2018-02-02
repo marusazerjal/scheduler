@@ -1,28 +1,37 @@
 """
 Params file for FunnelWeb Scheduler
 """
-from datetime import date
+#~ from datetime import date
+from astropy.time import Time
 
-# Essential params
-
-# Input tiling file (including path to this tile):
-input_tiling_filename_folder = 'data_input/'
-#~ input_tiling_filename = '171308_1647_fw_tiling.pkl'
-input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
-#~ input_tiling_filename = '170509_1943_fw_tiling.pkl' # 600mb
 #~ data_output_folder = 'data_output/'
-data_output_folder = 'data_output_simulator/'
+#~ data_output_folder = 'data_output_simulator/'
 
+simulation_nickname = 'v1'
 
-
-params={'simulate_dates_file': 'simulator/simulator_dates_bright_time.dat',
-           'MIN_MOON_PHASE_TO_OBSERVE': 0.5, # FunnelWeb gets bright time. This is around 16 nights per month with phase>0.5.
-           'date_start': date(2018, 3, 14),  # start date
-           'date_finish': date(2018, 4, 17),  # end date
-           'weather_clouds_stats': 'simulator/coonabarabran_cloudy_days_stats.dat',
-           'technical_issues_rate': 0.05, # How many times observations are not possible due to the technical issues
-           
-           #~ 'obs_config_json_folder': 'observers_files/funnelweb_simulation_motley/'
-           'obs_config_json_folder': 'observers_files/funnelweb_simulation_motley/'
+params={   'simulation_nickname': simulation_nickname,
+           'simulator_statistics_output': 'simulator/simulator_statistics_%s.dat'%simulation_nickname,
+           'observing_plan_folder': 'data_output_simulator/observing_plans_%s/'%simulation_nickname,
+           'obs_config_json_folder': 'observers_files/funnelweb_simulation_%s/'%simulation_nickname,
+           'date_start': Time('2019-10-24 11:15'), # UT
+           'date_finish': Time('2019-10-25 08:00'),
+           'weather_sso_database': 'simulator/fulldb_cadence_5mins.csv'
         }
+
+
+
+
+#~ params={'simulation_nickname': simulation_nickname,
+           #~ 'simulate_dates_file': 'simulator/simulator_dates_bright_time.dat',
+           #~ 'simulator_statistics_output': 'simulator/simulator_statistics_%s.dat'%simulation_nickname,
+           #~ 'observing_plan_folder': 'data_output_simulator/observing_plans_%s/'%simulation_nickname,
+           #~ 'MIN_MOON_PHASE_TO_OBSERVE': 0.5, # FunnelWeb gets bright time. This is around 16 nights per month with phase>0.5.
+           #~ 'date_start': date(2014, 10, 24),  # start date
+           #~ 'date_finish': date(2014, 10, 25),  # end date
+           #~ 'weather_clouds_stats': 'simulator/coonabarabran_cloudy_days_stats.dat',
+           #~ 'weather_sso_database': 'simulator/fulldb_cadence_5mins.csv',
+           #~ 'technical_issues_rate': 0.05, # How many times observations are not possible due to the technical issues
+           
+           #~ 'obs_config_json_folder': 'observers_files/funnelweb_simulation_%s/'%simulation_nickname
+        #~ }
 

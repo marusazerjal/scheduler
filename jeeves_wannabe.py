@@ -13,7 +13,7 @@ dec_current=-20 # testing
 # TODO: Weather input
 
 s=scheduler.Scheduler()
-best_tile = s.next_tile(ra_current=ra_current, dec_current=dec_current)
+best_tile, _ = s.next_tile(ra_current=ra_current, dec_current=dec_current)
 print best_tile
 
 # Should the format of the best_tile be the same as in the observing_plan?

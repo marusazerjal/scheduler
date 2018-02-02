@@ -42,7 +42,7 @@ try:
     TILES = data[0]
     SETTINGS = data[2]
 except NameError:
-    print 'Reading data...'
+    print 'Reading tiling data...'
     fl = open(params.params['input_tiling_filename'], 'rb')
     data = pickle.load(fl)
     fl.close()				
@@ -89,6 +89,7 @@ class Scheduler():
         self.determine_internal_tile_id_and_priorities()
         self.observed_tiles = manage_list_of_observed_tiles.load_internal_list_of_observed_tile_ids()
         self.group_tiles_per_magnitude_range() # Need this for magnitude range weight determination
+        self.limiting_magnitude=None
 
         self.observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
         self.location = EarthLocation(lat=params.params['LAT']*u.deg, lon=params.params['LON']*u.deg, height=params.params['EL']*u.m)
@@ -109,17 +110,29 @@ class Scheduler():
         self.max_priority=np.max(priorities)
 
     # TODO
-    def next_tile(self, ra_current=None, dec_current=None, weather=None):
+    def next_tile(self, date=None, ra_current=None, dec_current=None, weather=None, bright_time=False, limiting_magnitude=None, simulation_nickname=None):
         """
         Find the next tile to be observed. This is what Jeeves is going to call each time.
         Add ra_current and dec_current (and weather). This is how Jeeves is going to call this method.
         """
+
         # TODO: Now or in 10 minutes?
-        self.utc = Time(Time.now(), format='iso', scale='utc')
+        if date:
+            self.utc = Time(date, format='iso', scale='utc')
+        else:
+            self.utc = Time(Time.now(), format='iso', scale='utc')
+        
         self.local_sidereal_time = self.utc.sidereal_time('mean', longitude=params.params['LON']).value
 
         self.moon = get_moon(self.utc)
 
+        # ONLY BRIGHT TIME
+        if bright_time:
+            is_bright_time = self.check_if_moon_is_above_horizon(moon=self.moon, time=self.utc)
+            if is_bright_time:
+                pass
+            else:
+                return None, None
         #~ self.weather_conditions()
         #~ if weather_data_filename:
             #~ self.weather_data=np.loadtxt(weather_data_filename) # STRING!!
@@ -134,13 +147,17 @@ class Scheduler():
         if dec_current is None:
             self.dec_current=-30.0 # TODO
 
+        self.limiting_magnitude=limiting_magnitude
+
+
         best_tile=self.find_best_tile()
 
         # Update list of observed tiles
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
 
-        create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc)
+        json_filename = create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc, simulation_nickname=simulation_nickname)
  
+        self.observed_tiles.add(best_tile.TaipanTile.field_id)
  
         #~ # PLOT
         #~ telescope_positions=[best_tile.TaipanTile.ra, best_tile.TaipanTile.dec, self.moon.ra.value, self.moon.dec.value, best_tile.angular_moon_distance]
@@ -148,7 +165,7 @@ class Scheduler():
  
         
         # TODO: what should be a format for Jeeves?
-        return best_tile
+        return best_tile, json_filename
 
     def observing_plan(self, date=None, remove_twilight=False, bright_time=False):
         """
@@ -324,7 +341,7 @@ class Scheduler():
         self.exclude_tiles_too_close_to_the_moon()
         
         # Magnitude restrictions
-        #~ self.exclude_tiles_below_limiting_magnitude() # add this later when weather is taken into account
+        self.exclude_tiles_below_limiting_magnitude() # add this later when weather is taken into account
         
         # Determine weights for candidate tiles:
         for x in self.best_tiles_to_observe_now:
@@ -514,7 +531,7 @@ def next_tile():
     """
     s=Scheduler()
 
-    best_tile = s.next_tile()
+    best_tile, json_filename = s.next_tile()
     print best_tile
     
     print

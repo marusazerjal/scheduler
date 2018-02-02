@@ -12,7 +12,7 @@ import copy
 import simplejson as json
 import matplotlib.pylab as plt
 
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 from astroplan.moon import moon_illumination
 from astropy.coordinates import get_moon
 
@@ -20,12 +20,22 @@ import params_simulator
 reload(params_simulator)
 import scheduler
 reload(scheduler)
+import simulate_weather
+reload(simulate_weather)
 
+#~ print 'Start'
 
 # CLEAN LIST OF TILES ALREADY OBSERVED BEFORE EACH SIMULATION!
 # Remote twilight time from time available to observe.
 # It is better to change data_output_folder = 'data_output/' to something else (in the params.py file). Don't forget to add nearest_heighbours file.
 
+# TODO
+'''
+Print ranking for each tile, or for all the stars observed.
+Or maybe just print IDs and then read tiling file to get percentages of stars observed for each priority level.
+'''
+
+print 'Start simulation'
 
 def find_dates_to_observe():
     '''
@@ -100,12 +110,87 @@ def simulate():
         #~ if os.path.isdir("/home/el")):
             #~ continue
         
+        # Thin clouds. Observe only bright stars --> magnitude limit.
+        mag_limit=True
+        
         s.observing_plan(date=date, remove_twilight=True, bright_time=True)
 
         # Seeing
         #~ seeing=random.gauss(2.0, 1.0) # Maybe gauss is not the best distribution
     f.close()
+
+def simulate2():
+    s=scheduler.Scheduler()
     
+    ra_current=None
+    dec_current=None
+
+    # Print output
+    f=open(params_simulator.params['simulator_statistics_output'], 'wb')
+    f.write('# time; tile_id; Ntargets; priority; weight; mag_max; json_filename \n')
+    
+    def time_per_tile(mag):
+        if mag<12.5:
+            exposure = 60.0
+        elif 12.5<=mag<=14.5: # todo
+            exposure = 5.0*60.0
+        else:
+            exposure = 10.0*60.0
+
+        calibration_time=60.0 # todo
+        reconfig_time=3.5*60.0 # between 2 and 5 minutes
+        
+        # Assumption: slewing during reconfig time
+        
+        total_time = exposure+calibration_time+reconfig_time
+        
+        return total_time
+
+    def find_next_tile(ts=None, ra_current=None, dec_current=None, limiting_magnitude=None):
+        best_tile, json_filename = s.next_tile(date=ts, ra_current=ra_current, dec_current=dec_current, bright_time=True, limiting_magnitude=limiting_magnitude, simulation_nickname=params_simulator.params['simulation_nickname'])
+        if best_tile:
+            print best_tile
+            
+            f.write('%s; %d; %d; %d; %f; %.1f; %s \n'%(ts, best_tile.TaipanTile.field_id, len(best_tile.TaipanTile.get_assigned_targets_science()), best_tile.TaipanTile.priority, best_tile.weight*1000.0, best_tile.TaipanTile.mag_max, json_filename))
+            
+            mag=best_tile.TaipanTile.mag_max # TODO: check if this is upper or lower mag in the tile
+            dt=time_per_tile(mag)
+            ra_current=best_tile.TaipanTile.ra
+            dec_current=best_tile.TaipanTile.dec
+        else:
+            dt=10*60.0 # jump for 10 minutes
+        dt=TimeDelta(dt, format='sec')
+        return ra_current, dec_current, dt
+            
+    i=0
+    t=params_simulator.params['date_start']
+    while t < params_simulator.params['date_finish']:
+        ts=str(t)[:-7]
+
+        # Weather
+        # TODO: sky illumination is included, so only night time is considered (when Sun below horizon). What about the Moon?
+        if simulate_weather.is_weather_good(t.mjd):
+            msg = 'Weather good.'
+            ra_current, dec_current, dt = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current)
+        
+        elif simulate_weather.is_weather_acceptable_for_a_bright_tile(t.mjd):
+            msg = 'Weather acceptable for a bright tile.'
+            # TODO: determine limiting_magnitude
+            ra_current, dec_current, dt = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, limiting_magnitude=9.0)
+        
+        else:
+            msg = 'Weather bad.'
+            dt=TimeDelta(10*60.0, format='sec') # jump for 10 minutes
+
+        t+=dt
+        print t, 'dt', dt, params_simulator.params['date_finish'], msg
+
+        #~ i+=1
+        #~ if i>10:
+            #~ break
+            
+    f.close()
     
 if __name__ == "__main__":
-    simulate()
+    #~ simulate()
+    simulate2()

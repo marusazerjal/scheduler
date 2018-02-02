@@ -26,7 +26,7 @@ reload(params)
             #~ return (str(o) for o in [o])
         #~ return super(DecimalEncoder, self)._iterencode(o, markers)
 
-def create_ObsConfig_json(tile=None, utc=None):
+def create_ObsConfig_json(tile=None, utc=None, simulation_nickname=None):
     tile=tile.TaipanTile
     
     ra_tile, dec_tile = format_coordinates(tile.ra, tile.dec)
@@ -36,12 +36,12 @@ def create_ObsConfig_json(tile=None, utc=None):
     # targets: including standards?
     targets=[]
     for x in tile.get_assigned_targets_science():
-        ra, dec = format_coordinates(x.ra, x.dec)
+        ra, dec = format_coordinates2(x.ra, x.dec)
         targets.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))}) # Decimal(str(x.mag))
 
     guides=[]
     for x in tile.get_assigned_targets_guide():
-        ra, dec = format_coordinates(x.ra, x.dec)
+        ra, dec = format_coordinates2(x.ra, x.dec)
         guides.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))})
     
     # What does sky need 'mag'?
@@ -125,13 +125,16 @@ def create_ObsConfig_json(tile=None, utc=None):
     t=utc.split('T')[1].replace(':', '')
     date=utc.split('T')[0].replace('-', '')
     
-    folder = params.params['obs_config_json_folder'] + date + '/'
+    if simulation_nickname is not None:
+        folder = params.params['obs_config_json_folder'].replace('funnelweb', 'funnelweb_simulation_%s'%simulation_nickname) + date + '/'
+    else:
+        folder = params.params['obs_config_json_folder'] + date + '/'
     try:
         os.makedirs(folder)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
-    
+
     #~ print 'Printing json data'
     #~ print data
     
@@ -149,3 +152,29 @@ def format_coordinates(ra, dec):
     dec1='%02d:%02d:%02.0f'%(c.dec.dms.d, np.abs(c.dec.dms.m), np.abs(c.dec.dms.s))
     # TODO: round coordinates??
     return ra1, dec1   
+
+def format_coordinates2(ra, dec):
+    ra1=ra/15.0 # H
+    H=int(ra1)
+    ra2=(ra1-H)*60.0 # M
+    M=int(ra2)
+    ra3=(ra2-M)*60.0
+    S=ra3
+    RA='%02d:%02d:%02.1f'%(H, M, S)
+    
+    if dec<0.0:
+        sign=-1.0
+    else:
+        sign=1.0
+    dec=np.abs(dec)
+    D=int(dec)
+    dec2=(dec-D)*60.0
+    m=int(dec2)
+    dec3=(dec2-m)*60.0
+    s=dec3
+    if sign<0.0:
+        DEC='-%02d:%02d:%02.0f'%(D, m, s)
+    else:
+        DEC='%02d:%02d:%02.0f'%(D, m, s)
+    # TODO: round coordinates??
+    return RA, DEC
