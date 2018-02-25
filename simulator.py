@@ -136,7 +136,9 @@ def simulate2():
     
     unique_targets=set()
     repeats=Dictlist()
+    #~ global total_number_cumulative_unique# including repeated observations
     total_number_cumulative_unique = 0 # including repeated observations
+    #~ global total_number_cumulative # including repeated observations
     total_number_cumulative = 0 # including repeated observations
 
     # Print output
@@ -165,7 +167,7 @@ def simulate2():
         
         return total_time
 
-    def find_next_tile(ts=None, ra_current=None, dec_current=None, limiting_magnitude=None):
+    def find_next_tile(ts=None, ra_current=None, dec_current=None, limiting_magnitude=None, unique_targets=None, repeats=None, total_number_cumulative_unique=None,total_number_cumulative=None):
         best_tile, json_filename = s.next_tile(date=ts, ra_current=ra_current, dec_current=dec_current, bright_time=True, limiting_magnitude=limiting_magnitude, simulation_nickname=params_simulator.params['simulation_nickname'])
         if best_tile is not None:
             print best_tile
@@ -192,7 +194,7 @@ def simulate2():
         else:
             dt=10*60.0 # jump for 10 minutes and hope weather gets better
         dt=TimeDelta(dt, format='sec')
-        return ra_current, dec_current, dt
+        return ra_current, dec_current, dt, unique_targets, repeats, total_number_cumulative_unique, total_number_cumulative
             
     i=0
     t=params_simulator.params['date_start']
@@ -204,12 +206,12 @@ def simulate2():
         # TODO: sky illumination is included, so only night time is considered (when Sun below horizon). What about the Moon?
         if simulate_weather.is_weather_good(t.mjd):
             msg = 'Weather good.'
-            ra_current, dec_current, dt = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current)
+            ra_current, dec_current, dt, unique_targets, repeats, total_number_cumulative_unique, total_number_cumulative = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, unique_targets=unique_targets, repeats=repeats, total_number_cumulative_unique=total_number_cumulative_unique, total_number_cumulative=total_number_cumulative)
         
         elif simulate_weather.is_weather_acceptable_for_a_bright_tile(t.mjd):
             msg = 'Weather acceptable for a bright tile.'
             # TODO: determine limiting_magnitude
-            ra_current, dec_current, dt = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, limiting_magnitude=9.0)
+            ra_current, dec_current, dt, unique_targets, repeats, total_number_cumulative_unique, total_number_cumulative = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, limiting_magnitude=9.0, unique_targets=unique_targets, repeats=repeats, total_number_cumulative_unique=total_number_cumulative_unique, total_number_cumulative=total_number_cumulative)
         
         else:
             msg = 'Weather bad.'
