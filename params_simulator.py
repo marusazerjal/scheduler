@@ -7,7 +7,7 @@ from astropy.time import Time
 #~ data_output_folder = 'data_output/'
 #~ data_output_folder = 'data_output_simulator/'
 
-simulation_nickname = 'v1'
+simulation_nickname = 'priorities1'
 
 params={   'simulation_nickname': simulation_nickname,
            'simulator_statistics_output': 'simulator/simulator_statistics_%s.dat'%simulation_nickname,
