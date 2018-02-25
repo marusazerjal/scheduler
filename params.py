@@ -2,17 +2,16 @@
 Params file for FunnelWeb Scheduler
 """
 
-# Essential params
-
-# Input tiling file (including path to this tile):
+'''
+Input tiling file
+'''
 input_tiling_filename_folder = 'data_input/'
-#~ input_tiling_filename = '171308_1647_fw_tiling.pkl'
-#~ input_tiling_filename = '170812_1742_31_fw_tiling.pkl' # with FW input catalogue
-input_tiling_filename = '180901_0526_34_fw_tiling.pkl' # with FW input catalogue
+#~ input_tiling_filename = '180901_0526_34_fw_tiling.pkl'
+input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
 #~ data_output_folder = 'data_output/'
-data_output_folder = 'data_output_simulator/'
-
-#~ input_tiling_filename_folder= '/Users/mireland/Google Drive/FunnelWeb/TargetSelection/tiling_results/'
+#~ data_output_folder = 'data_output_simulator/'
+#~ data_output_folder = 'data_output_for_jon/'
+data_output_folder = 'data_output_with_priorities/'
 
 """
 CONSTANTS

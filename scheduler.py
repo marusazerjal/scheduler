@@ -102,7 +102,7 @@ class Scheduler():
         priorities=[]
         for tile_id, x in enumerate(self.tiles):
             x.field_id=tile_id
-            prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base'])
+            prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+2.0)
             x.priority=prior
             priorities.append(prior)
             tiles2.append(x)
@@ -132,6 +132,7 @@ class Scheduler():
             if is_bright_time:
                 pass
             else:
+                print 'Dark time, Taipan is observing.'
                 return None, None
         #~ self.weather_conditions()
         #~ if weather_data_filename:
@@ -151,6 +152,9 @@ class Scheduler():
 
 
         best_tile=self.find_best_tile()
+        
+        if best_tile is None:
+            return None, None
 
         # Update list of observed tiles
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
@@ -262,6 +266,9 @@ class Scheduler():
             self.local_sidereal_time=lst # TODO: check if this violates any other things. Why cant I insert LST to init_best_tiles...??
   
             best_tile = self.find_best_tile()
+            
+            if best_tile is None:
+                continue
 
             # Update list of observed tiles
             self.observed_tiles.add(best_tile.TaipanTile.field_id)
@@ -355,19 +362,26 @@ class Scheduler():
         
         # Get data
         # Investigate best 5% ob the tiles and take the one closest to the local meridian
-        w_max=b[0].weight
-        w_min=w_max*params.params['CONSIDER_TILES_ABOVE_THIS_WEIGHT']
-        b1=[x for x in b if x.weight>w_min]
+        if len(b)>0:
+            w_max=b[0].weight
+            w_min=w_max*params.params['CONSIDER_TILES_ABOVE_THIS_WEIGHT']
+            b1=[x for x in b if x.weight>w_min]
 
-        bb=b[0]
-        Hmin=1000.0
-        for x in b1:
-            if np.abs(x.hour_angle)<Hmin:
-                bb=x
-                Hmin=np.abs(x.hour_angle)
-        
-        #~ best_tile=self.best_tiles_to_observe_now[0]
-        best_tile=bb
+            # Take the one closest to the local meridian
+            bb=b[0]
+            Hmin=1000.0
+            for x in b1:
+                if np.abs(x.hour_angle)<Hmin:
+                    bb=x
+                    Hmin=np.abs(x.hour_angle)
+            
+            #~ best_tile=self.best_tiles_to_observe_now[0]
+            best_tile=bb
+        else:
+            '''
+            Dark time or no available tiles.
+            '''
+            best_tile = None
         return best_tile        
 
     def group_tiles_per_magnitude_range(self):

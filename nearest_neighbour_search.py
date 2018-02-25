@@ -58,8 +58,8 @@ tiles_mag_range={k: v for k, v in tiles_mag_range.iteritems()}
 
 #~ X=np.array([[np.deg2rad(x.ra), np.deg2rad(x.dec), i] for i, x in enumerate(TILES)])
 #~ X=np.array([[np.deg2rad(x.ra), np.deg2rad(x.dec)] for x in TILES])
-X=np.array(tiles_mag_range[(5.0, 8.0)])
-print 'len X', len(X)
+#~ X=np.array(tiles_mag_range[(5.0, 8.0)])
+#~ print 'len X', len(X)
 
 def distance_between_two_points_in_the_sky(v1, v2):
     """

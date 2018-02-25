@@ -22,6 +22,8 @@ from astropy.coordinates import SkyCoord
 import params
 import params_simulator
 
+simulation_nickname = 'v1'
+
 # CLEAN LIST OF TILES ALREADY OBSERVED BEFORE EACH SIMULATION!
 # Remote twilight time from time available to observe.
 
@@ -365,25 +367,41 @@ def sky_coverage_after_one_year(path=None, simulator_dates_file=None): # animati
         data.append([k, c])
     
     # All
+    #~ fig=plt.figure(figsize=(16.0, 10.0), dpi=600)
+    #~ ax=fig.add_subplot(111)
+    #~ for x in data:
+        #~ d=x[1]
+        #~ ax.scatter(d[:,0], d[:,1], s=1, alpha=0.1, c='k')
+    #~ plt.savefig('simulator/all.png')
+
+    # mollweide
     fig=plt.figure(figsize=(16.0, 10.0), dpi=600)
-    ax=fig.add_subplot(111)
+    ax=fig.add_subplot(111, projection='mollweide')
     for x in data:
         d=x[1]
-        ax.scatter(d[:,0], d[:,1], s=1, alpha=0.1, c='k')
-    plt.savefig('simulator/all.png')
+        RA=d[:,0]
+        org=6*15.0
+        y = np.remainder(RA+360-org,360) # shift RA values
+        ind = y>180
+        y[ind] -=360    # scale conversion to [-180, 180]
+        y=-y    # reverse the scale: East to the left
+        ra=[np.deg2rad(r) for r in y]
+        dec=[np.deg2rad(x) for x in d[:,1]]
+        ax.scatter(ra, dec, s=1, alpha=0.008, c='k')
+    plt.savefig('simulator/all_mollweide.png')
     
     # Animation
-    for i in range(len(data)):
-        fig=plt.figure(figsize=(16.0, 10.0), dpi=600)
-        ax=fig.add_subplot(111)
-        for x in data[:i+1]:
-            d=x[1]
-            #~ date=d[0]
-            ax.scatter(d[:,0], d[:,1], s=1, alpha=0.1, c='k')
-            ax.set_xlim(0, 360)
-            ax.set_ylim(-90, 0)
-        plt.savefig('simulator/sky_coverage_over_time/nights/%d.png'%int(data[i][0]))
-        print i, len(data), data[i][0]
+    #~ for i in range(len(data)):
+        #~ fig=plt.figure(figsize=(16.0, 10.0), dpi=600)
+        #~ ax=fig.add_subplot(111)
+        #~ for x in data[:i+1]:
+            #~ d=x[1]
+            #date=d[0]
+            #~ ax.scatter(d[:,0], d[:,1], s=1, alpha=0.1, c='k')
+            #~ ax.set_xlim(0, 360)
+            #~ ax.set_ylim(-90, 0)
+        #~ plt.savefig('simulator/sky_coverage_over_time/nights/%d.png'%int(data[i][0]))
+        #~ print i, len(data), data[i][0]
     #~ plt.show() 
  
 def allsky_animation_of_how_fields_are_observed_through_time(path=None, simulator_dates_file=None): # animation for the webpage
@@ -681,14 +699,18 @@ def number_of_nights_observed_each_bright_time():
     todo=True
     # histogram for each observing run
 
-def how_priorities_drop_over_time():
-    todo=True
-    # read tiling file
-    # compute ranking
-    # read all json files and get fieldID
+def how_priorities_decrease_over_time():
+    # what about individual stellar priorities?
+    
+    data=np.loadtxt('simulator/simulator_statistics_%s.dat'%simulation_nickname, comments='#', delimiter=';', dtype='string')
 
+    dates_datetime=[datetime.date(year=int(d[0][:4]), month=int(d[0][5:7]), day=int(d[0][8:10])) for d in data]
+    priorities=[int(d[3]) for d in data]
 
-
+    fig=plt.figure()
+    ax=fig.add_subplot(111)
+    ax.scatter(dates_datetime, priorities)
+    plt.show()
 
 
 def how_magnitude_distribution_is_changing_over_time():
@@ -697,9 +719,11 @@ def how_magnitude_distribution_is_changing_over_time():
     
 if __name__ == "__main__":
     #~ how_number_of_observed_stars_grows_with_time(path=params_simulator.params['obs_config_json_folder'], simulator_dates_file='simulator/simulator_dates_motley.dat')
-    how_number_of_observed_stars_grows_with_time()
+    #~ how_number_of_observed_stars_grows_with_time()
     
-    #~ sky_coverage_after_one_year() # this one
+    #~ how_priorities_decrease_over_time()
+    
+    sky_coverage_after_one_year(path='observers_files/funnelweb_simulation_bright_time/', simulator_dates_file='simulator/simulator_dates_bright_time.dat') # this one
     #~ allsky_animation_of_how_fields_are_observed_through_time()
     
     #~ ra_deg_histograms_over_time()
