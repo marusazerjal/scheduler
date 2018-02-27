@@ -63,6 +63,14 @@ def is_weather_acceptable_for_a_bright_tile(t):
     else:
         return False      
 
+def is_it_night(t):
+    wd=find_weather_data(t)
+    if wd is None:
+        return True # For simulation purposes
+    elif wd['light']>400:
+        return False
+    else:
+        return True
 
 if __name__ == "__main__":
     t=(time.Time('2014-10-24 11:20', format='iso')).mjd

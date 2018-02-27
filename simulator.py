@@ -133,13 +133,6 @@ def simulate2():
     
     ra_current=None
     dec_current=None
-    
-    unique_targets=set()
-    repeats=Dictlist()
-    #~ global total_number_cumulative_unique# including repeated observations
-    total_number_cumulative_unique = 0 # including repeated observations
-    #~ global total_number_cumulative # including repeated observations
-    total_number_cumulative = 0 # including repeated observations
 
     # Print output
     f=open(params_simulator.params['simulator_statistics_output'], 'wb')
@@ -148,7 +141,7 @@ def simulate2():
     def time_per_tile(mag):
         if mag<12.5:
             exposure = 60.0
-        elif 12.5<=mag<=14.5: # todo
+        elif 12.5<=mag<14.5: # todo
             exposure = 5.0*60.0
         else:
             exposure = 10.0*60.0
@@ -187,6 +180,8 @@ def simulate2():
             
             f.write('%s; %d; %d; %d; %d; %d; %d; %f; %.1f; %s \n'%(ts, best_tile.TaipanTile.field_id, len(ids), len(unique_tmp), total_number_cumulative_unique, total_number_cumulative, best_tile.TaipanTile.priority, best_tile.weight*1000.0, best_tile.TaipanTile.mag_max, json_filename))
             
+            print len(unique_targets), len(unique_tmp), total_number_cumulative_unique, total_number_cumulative
+            
             mag=best_tile.TaipanTile.mag_max # TODO: check if this is upper or lower mag in the tile
             dt=time_per_tile(mag)
             ra_current=best_tile.TaipanTile.ra
@@ -199,7 +194,18 @@ def simulate2():
     i=0
     t=params_simulator.params['date_start']
     hourly_calibration_frames=TimeDelta(0, format='sec')
-    while t < params_simulator.params['date_finish']:
+
+    unique_targets=set()
+    repeats=Dictlist()
+    total_number_cumulative_unique = 0 # including repeated observations
+    total_number_cumulative = 0 # including repeated observations
+    
+    number_of_tiles_observed = 0
+    number_of_all_tiles = scheduler.number_of_all_tiles()
+    
+    time_with_no_observing = TimeDelta(0, format='sec')
+
+    while t < params_simulator.params['date_finish'] and time_with_no_observing < TimeDelta(3600.0*24.0*60.0, format='sec'):
         ts=str(t)[:-7]
 
         # Weather
@@ -207,15 +213,22 @@ def simulate2():
         if simulate_weather.is_weather_good(t.mjd):
             msg = 'Weather good.'
             ra_current, dec_current, dt, unique_targets, repeats, total_number_cumulative_unique, total_number_cumulative = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, unique_targets=unique_targets, repeats=repeats, total_number_cumulative_unique=total_number_cumulative_unique, total_number_cumulative=total_number_cumulative)
+            
+            number_of_tiles_observed+=1
+            time_with_no_observing = TimeDelta(0, format='sec')
         
         elif simulate_weather.is_weather_acceptable_for_a_bright_tile(t.mjd):
             msg = 'Weather acceptable for a bright tile.'
             # TODO: determine limiting_magnitude
             ra_current, dec_current, dt, unique_targets, repeats, total_number_cumulative_unique, total_number_cumulative = find_next_tile(ts=ts, ra_current=ra_current, dec_current=dec_current, limiting_magnitude=9.0, unique_targets=unique_targets, repeats=repeats, total_number_cumulative_unique=total_number_cumulative_unique, total_number_cumulative=total_number_cumulative)
+            
+            number_of_tiles_observed+=1
+            time_with_no_observing = TimeDelta(0, format='sec')
         
         else:
             msg = 'Weather bad.'
             dt=TimeDelta(10*60.0, format='sec') # jump for 10 minutes
+            time_with_no_observing = TimeDelta(10*60.0, format='sec')
 
         t+=dt
         print t, 'dt', dt, params_simulator.params['date_finish'], msg

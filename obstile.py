@@ -81,7 +81,7 @@ class ObsTile():
         self.local_sidereal_time = value
         
     def __str__(self):
-        string = 'TP TILE %s: RA=%s, Dec=%s, Ranking=%s, w=%s, Altitude=%s, H=%s, Moon_dist=%s, mag_max=%s' % (('%d'%self.TaipanTile.field_id).rjust(5), ('%3.1f'%self.TaipanTile.ra).rjust(5), ('%2.1f'%self.TaipanTile.dec).rjust(5), ('%d'%self.TaipanTile.priority).rjust(5), ('%2.4f'%(self.weight*1000.0)).rjust(8), ('%d'%self.alt).rjust(2), ('%.2f'%self.hour_angle).rjust(6), ('%d'%self.angular_moon_distance).rjust(3), ('%d'%self.TaipanTile.mag_max).rjust(2)) #+ ' surface density %f %d %d'%(self.surface_density[0], self.surface_density[1], self.surface_density[2])
+        string = 'TP TILE %s: RA=%s, Dec=%s, Ranking=%s, w=%s, Altitude=%s, H=%s, Moon_dist=%s, mag_max=%s' % (('%d'%self.TaipanTile.field_id).rjust(5), ('%3.1f'%self.TaipanTile.ra).rjust(5), ('%2.1f'%self.TaipanTile.dec).rjust(5), ('%d'%self.TaipanTile.priority).rjust(5), ('%2.4f'%(self.weight*1000.0)).rjust(8), ('%d'%self.alt).rjust(2), ('%.2f'%self.hour_angle).rjust(6), ('%d'%self.angular_moon_distance).rjust(3), ('%.1f'%self.TaipanTile.mag_max).rjust(2)) #+ ' surface density %f %d %d'%(self.surface_density[0], self.surface_density[1], self.surface_density[2])
         return string
 
     #~ def __repr__(self):

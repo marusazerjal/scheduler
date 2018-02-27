@@ -565,6 +565,12 @@ def observing_plan(date=None, remove_twilight=False):
     t_end=datetime.datetime.now()
     dt=t_end-t_start
     print 'Total time: %d s (%.2f min)'%(dt.seconds, dt.seconds/60.0)
+
+def number_of_all_tiles():
+    return len(TILES)
+
+def nearest_neighbours():
+    return NN
             
 if __name__ == "__main__":
 
