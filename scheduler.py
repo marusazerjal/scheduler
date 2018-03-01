@@ -103,6 +103,12 @@ class Scheduler():
         for tile_id, x in enumerate(self.tiles):
             x.field_id=tile_id
             prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+params.params['exponent_base_add'])
+            
+            if params.params['highest_tile_score_if_any_priority_5_star']:
+                p=set([y.priority for y in x.get_assigned_targets_science(include_science_standards=False)])
+                if 5 in p:
+                    prior=params.params['highest_tile_score_if_any_priority_5_star_value']
+
             x.priority=prior
             priorities.append(prior)
             tiles2.append(x)
