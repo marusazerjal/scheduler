@@ -26,7 +26,7 @@ reload(params)
             #~ return (str(o) for o in [o])
         #~ return super(DecimalEncoder, self)._iterencode(o, markers)
 
-def create_ObsConfig_json(tile=None, utc=None, simulation_nickname=None):
+def create_ObsConfig_json(tile=None, utc=None):
     tile=tile.TaipanTile
     
     ra_tile, dec_tile = format_coordinates(tile.ra, tile.dec)
@@ -125,10 +125,11 @@ def create_ObsConfig_json(tile=None, utc=None, simulation_nickname=None):
     t=utc.split('T')[1].replace(':', '')
     date=utc.split('T')[0].replace('-', '')
     
-    if simulation_nickname is not None:
-        folder = params.params['obs_config_json_folder'].replace('funnelweb', 'funnelweb_simulation_%s'%simulation_nickname) + date + '/'
-    else:
-        folder = params.params['obs_config_json_folder'] + date + '/'
+    #~ if simulation_nickname is not None:
+        #~ folder = params.params['obs_config_json_folder'].replace('funnelweb', 'funnelweb_simulation_%s'%simulation_nickname) + date + '/'
+    #~ else:
+    folder = params.params['obs_config_json_folder'] + date + '/'
+    
     try:
         os.makedirs(folder)
     except OSError as e:

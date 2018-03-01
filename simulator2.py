@@ -17,6 +17,8 @@ from astropy.time import Time, TimeDelta
 from astroplan.moon import moon_illumination
 from astropy.coordinates import get_moon
 
+import params
+reload(params)
 import params_simulator
 reload(params_simulator)
 import scheduler
@@ -72,15 +74,17 @@ class Simulator():
 
 
     def time_per_tile(self, mag):
-        if mag<12.49:
-            exposure = 60.0
-        elif 12.49<mag<14.49: # todo
-            exposure = 5.0*60.0
-        else:
-            exposure = 10.0*60.0
+        #~ if mag<12.49:
+            #~ exposure = 60.0
+        #~ elif 12.49<mag<14.49: # todo
+            #~ exposure = 5.0*60.0
+        #~ else:
+            #~ exposure = 10.0*60.0
+
+        exposure=params_simulator.params['exposure_time'][mag]
 
         #~ calibration_time=60.0 # todo; done hourly
-        reconfig_time=3.5*60.0 # between 2 and 5 minutes
+        reconfig_time=params_simulator.params['reconfig_time'] # between 2 and 5 minutes
         
         # We slew during reconfig time
         #~ slew_time = 90.0 # 60 seconds. is this realistic?
@@ -102,7 +106,7 @@ class Simulator():
         '''
         
         # Next tile
-        best_tile, json_filename = self.scheduler.next_tile(date=ts, ra_current=self.ra_current, dec_current=self.dec_current, bright_time=True, limiting_magnitude=limiting_magnitude, simulation_nickname=params_simulator.params['simulation_nickname'])
+        best_tile, json_filename = self.scheduler.next_tile(date=ts, ra_current=self.ra_current, dec_current=self.dec_current, bright_time=True, limiting_magnitude=limiting_magnitude)
         
         
         # Statistics and technical stuff
@@ -127,21 +131,22 @@ class Simulator():
 
     def print_statistics(self, best_tile=None, json_filename=None, ts=None):
         # Unique targets
-        science_targets=best_tile.TaipanTile.get_assigned_targets_science()
-        ids=[x.idn for x in science_targets]
-        self.unique_targets.update(ids)
-        unique_tmp=set(ids).difference(self.unique_targets) # unique targets in the best_tile tile
+        #~ science_targets=best_tile.TaipanTile.get_assigned_targets_science()
+        #~ ids=[x.idn for x in science_targets]
+        #~ self.unique_targets.update(ids)
+        #~ unique_tmp=set(ids).difference(self.unique_targets) # unique targets in the best_tile tile
         
-        self.total_number_cumulative_unique += len(unique_tmp)
-        self.total_number_cumulative += len(ids)
+        #~ self.total_number_cumulative_unique += len(unique_tmp)
+        #~ self.total_number_cumulative += len(ids)
         
         self.number_of_tiles_observed += 1
         
-        # Repeated observations: just make list of all observations of all stars for now
-        for x in ids:
-            self.repeats[x]=ts
+        #~ # Repeated observations: just make list of all observations of all stars for now
+        #~ for x in ids:
+            #~ self.repeats[x]=ts
         
-        self.f.write('%s; %d; %d; %d; %d; %d; %d; %f; %.1f; %s \n'%(ts, best_tile.TaipanTile.field_id, len(ids), len(unique_tmp), self.total_number_cumulative_unique, self.total_number_cumulative, best_tile.TaipanTile.priority, best_tile.weight*1000.0, best_tile.TaipanTile.mag_max, json_filename))
+        #~ self.f.write('%s; %d; %d; %d; %d; %d; %d; %f; %.1f; %s \n'%(ts, best_tile.TaipanTile.field_id, len(ids), len(unique_tmp), self.total_number_cumulative_unique, self.total_number_cumulative, best_tile.TaipanTile.priority, best_tile.weight*1000.0, best_tile.TaipanTile.mag_max, json_filename))
+        self.f.write('%s; %d; %d; %f; %.1f; %s \n'%(ts, best_tile.TaipanTile.field_id, best_tile.TaipanTile.priority, best_tile.weight*1000.0, best_tile.TaipanTile.mag_max, json_filename))
         
         #~ print len(self.unique_targets), len(unique_tmp), self.total_number_cumulative_unique, self.total_number_cumulative
 
@@ -207,8 +212,8 @@ class Simulator():
 
             print ''
 
-        with open('repeats_with_priorities_%s.pkl'%params_simulator.params['simulation_nickname'], 'wb') as f:
-            pickle.dump(self.repeats, f)
+        #~ with open('%srepeats.pkl'%params.params['data_output_folder'], 'wb') as f:
+            #~ pickle.dump(self.repeats, f)
         
         
         self.__finish__()

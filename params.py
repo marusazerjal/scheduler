@@ -5,23 +5,32 @@ Params file for FunnelWeb Scheduler
 '''
 Input tiling file
 '''
+
+import os
+
 input_tiling_filename_folder = 'data_input/'
-#~ input_tiling_filename = '180901_0526_34_fw_tiling.pkl'
 input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
-#~ data_output_folder = 'data_output/'
-#~ data_output_folder = 'data_output_simulator/'
-#~ data_output_folder = 'data_output_for_jon/'
-data_output_folder = 'data_output_with_priorities/'
+
+data_output_folder = 'data_test5/'
+
+# create this folder
+if not os.path.exists(data_output_folder):
+    os.makedirs(data_output_folder)
 
 """
 CONSTANTS
 """
 params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_tiling_filename),
-        'nearest_neighbours_filename': '%snearest_neighbours_%s.pkl'%(data_output_folder, input_tiling_filename[:-11]),
+        'nearest_neighbours_filename': '%snearest_neighbours_%s.pkl'%(input_tiling_filename_folder, input_tiling_filename[:-11]),
         'observed_tiles_internal_filename': '%s%s_observed_tiles_internal.dat'%(data_output_folder, input_tiling_filename[:-11]),
         'observed_tiles_external_filename': '%s%s_observed_tiles_external.dat'%(data_output_folder, input_tiling_filename[:-11]),
         'observing_plan_filename': '%sobserving_plan'%(data_output_folder),
-        'obs_config_json_folder': 'observers_files/funnelweb/',
+        #~ 'obs_config_json_folder': 'observers_files/funnelweb/',
+        'obs_config_json_folder': '%sjson/'%data_output_folder,
+        
+        'data_output_folder': data_output_folder, # simulator needs this
+        
+        'exponent_base_add': 2.0, # add this number to the default exponent base of 3
         
         'ALT_MIN': 27.0, # Minimal altitude of the tile good to observe
         'ALT_MAX': 85.0, # Maximal altitude of the tile good to observe

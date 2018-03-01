@@ -102,7 +102,7 @@ class Scheduler():
         priorities=[]
         for tile_id, x in enumerate(self.tiles):
             x.field_id=tile_id
-            prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+2.0)
+            prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+params.params['exponent_base_add'])
             x.priority=prior
             priorities.append(prior)
             tiles2.append(x)
@@ -110,7 +110,7 @@ class Scheduler():
         self.max_priority=np.max(priorities)
 
     # TODO
-    def next_tile(self, date=None, ra_current=None, dec_current=None, weather=None, bright_time=False, limiting_magnitude=None, simulation_nickname=None):
+    def next_tile(self, date=None, ra_current=None, dec_current=None, weather=None, bright_time=False, limiting_magnitude=None):
         """
         Find the next tile to be observed. This is what Jeeves is going to call each time.
         Add ra_current and dec_current (and weather). This is how Jeeves is going to call this method.
@@ -159,7 +159,7 @@ class Scheduler():
         # Update list of observed tiles
         manage_list_of_observed_tiles.add_tile_id_internal_to_the_list({best_tile.TaipanTile.field_id})
 
-        json_filename = create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc, simulation_nickname=simulation_nickname)
+        json_filename = create_obs_config_json.create_ObsConfig_json(tile=best_tile, utc=self.utc)
  
         self.observed_tiles.add(best_tile.TaipanTile.field_id)
  
@@ -529,6 +529,11 @@ class Scheduler():
 
         #~ print 'seeing, sky_transparency', seeing, sky_transparency
         print 'sky_transparency', sky_transparency
+    
+    def magnitude_ranges(self):
+        mag_ranges=[k for k in self.tiles_mag_range.iterkeys()]
+        mag_ranges=sorted(mag_ranges)
+        return mag_ranges
 
 """
 -------------------
@@ -571,7 +576,7 @@ def number_of_all_tiles():
 
 def nearest_neighbours():
     return NN
-            
+           
 if __name__ == "__main__":
 
     """
