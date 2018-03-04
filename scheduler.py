@@ -37,7 +37,7 @@ reload(obstile)
 reload(create_obs_config_json)
 reload(visualization)
 
-print 'Input tiling file', params.params['input_tiling_filename']
+print 'Input tiling file:', params.params['input_tiling_filename']
 try:
     TILES = data[0]
     SETTINGS = data[2]
@@ -52,7 +52,7 @@ except NameError:
 
 print 'Number of input tiles:', len(TILES)
 
-
+#~ print SETTINGS
 
 print 'Nearest neighbours file', params.params['nearest_neighbours_filename']
 try:

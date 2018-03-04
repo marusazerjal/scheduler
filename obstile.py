@@ -33,7 +33,7 @@ ALT_MAX = params.params['ALT_MAX']
 HOUR_ANGLE_AMP = params.params['HOUR_ANGLE_AMP']
 MOON_ANGDIST_MIN = params.params['MOON_ANGDIST_MIN']
 MOON_ANGDIST_OK = params.params['MOON_ANGDIST_OK']
-SLEW_TIME_MIN = params.params['SLEW_TIME_MIN'] # Do I need this?
+#~ SLEW_TIME_MIN = params.params['SLEW_TIME_MIN'] # Do I need this?
 
 class ObsTile():
     """
@@ -247,9 +247,12 @@ class ObsTile():
         
         # Take tiles with priority 0 into account
         w_ranking = float(self.TaipanTile.priority)# / float(self.max_priority) # [0, 1]
-        # Some tiles have ranking equal to 0. So we set probability to 0.5:
-        if w_ranking<1e-12:
-            w_ranking=1e-4
+        
+        # Some tiles have ranking equal to 0.
+        if params.params['weighting_ranking_0']:
+            w_ranking = float(self.TaipanTile.priority)
+            if w_ranking<1e-12:
+                w_ranking=params.params['w_ranking_0_value']
         
         #~ w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
         w = w_ranking * w_altitude * w_moon * w_density * w_mag_range # No slew time because it is very fast (reconfig is much longer)

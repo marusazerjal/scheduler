@@ -16,6 +16,7 @@ import pickle
 from astropy.time import Time, TimeDelta
 from astroplan.moon import moon_illumination
 from astropy.coordinates import get_moon
+from astroplan import Observer
 
 import params
 reload(params)
@@ -44,6 +45,7 @@ print 'Start simulation'
 class Simulator():
     def __init__(self):
         self.scheduler = scheduler.Scheduler()
+        self.observatory = Observer.at_site("Anglo-Australian Observatory") # TODO: enter LAT and LON coordinates
         
         self.ra_current=None
         self.dec_current=None
@@ -125,6 +127,7 @@ class Simulator():
         else:
             dt=10*60.0 # jump for 10 minutes and hope weather gets better
             self.time_with_no_observing += TimeDelta(10.0*60.0, format='sec')
+            print 'time_with_no_observing:', self.time_with_no_observing
 
         dt=TimeDelta(dt, format='sec')
         self.dt=dt
@@ -181,6 +184,18 @@ class Simulator():
 
         while t < params_simulator.params['date_finish'] and self.time_with_no_observing < TimeDelta(3600.0*24.0*10.0, format='sec'):
             ts=str(t)[:-7]
+            date=ts[:10]
+
+            # NIGHT
+            sun_set = self.observatory.sun_set_time(Time(date) + TimeDelta(3600.0, format='sec')).datetime     
+            sun_rise = self.observatory.sun_rise_time(Time(date) - TimeDelta(3600.0, format='sec') + TimeDelta(1.0, format='jd')).datetime # NEXT DAY
+            print date, sun_set, sun_rise
+            if t>=sun_set and t<sun_rise:
+                pass # it is night
+            else: # daytime
+                t+=TimeDelta(10*60.0, format='sec') # TODO: check if this increment is consistent with other things
+                continue
+        
 
             # Weather
             # TODO: sky illumination is included, so only night time is considered (when Sun below horizon). What about the Moon?
@@ -215,6 +230,8 @@ class Simulator():
         #~ with open('%srepeats.pkl'%params.params['data_output_folder'], 'wb') as f:
             #~ pickle.dump(self.repeats, f)
         
+            if self.time_with_no_observing > TimeDelta(3600.0*24.0*10.0, format='sec'):
+                break
         
         self.__finish__()
     

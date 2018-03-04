@@ -2,18 +2,15 @@
 Params file for FunnelWeb Scheduler
 """
 
-'''
-Input tiling file
-'''
-
 import os
 
+# Input data
 input_tiling_filename_folder = 'data_input/'
 input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
 
-data_output_folder = 'data_test5/'
+data_output_folder = 'data9/'
 
-# create this folder
+# Create this folder
 if not os.path.exists(data_output_folder):
     os.makedirs(data_output_folder)
 
@@ -27,8 +24,6 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         'observing_plan_filename': '%sobserving_plan'%(data_output_folder),
         #~ 'obs_config_json_folder': 'observers_files/funnelweb/',
         'obs_config_json_folder': '%sjson/'%data_output_folder,
-        
-        'data_output_folder': data_output_folder, # simulator needs this
         
         'exponent_base_add': 2.0, # add this number to the default exponent base of 3
         'highest_tile_score_if_any_priority_5_star': False,
@@ -45,10 +40,10 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         'MOON_ANGDIST_MIN': 20.0, # Minimal acceptable distance
         'MOON_ANGDIST_OK': 30.0, # Distance where sky illumination by the Moon is negligible
 
-        'TIME_PER_TILE': 10,#10 # [minutes], 10 minutes altogether per tile
-        'SLEW_TIME_MIN': 60.0, # [seconds], take slew time into consideration above this limit
+        'TIME_PER_TILE': 10, # [minutes], observing plan, 10 minutes altogether per tile
+        #~ 'SLEW_TIME_MIN': 60.0, # [seconds], take slew time into consideration above this limit
 
-        'TILE_DENSITY_RADIUS': 6.0, #deg, OBSOLETE; radius to compute observed tile surface density
+        #~ 'TILE_DENSITY_RADIUS': 6.0, #deg, OBSOLETE; radius to compute observed tile surface density
         'K_NEAREST_NEIGHBOURS': 15, # Number of nearest neighbours to consider instead of TILE_DENSITY_RADIUS
         
         #~ 'N_BEST_TILES_MERIDIAN': 10, # Select tile closest to the meridian among the first N_BEST_TILES_MERIDIAN tiles.
@@ -58,5 +53,13 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         # TODO: this data is automatic result from Google. Check if it is correct.
         'LAT': -31.2749, # deg South
         'LON': 149.0685, # deg East
-        'EL': 1164.0 # m, elevation
+        'EL': 1164.0, # m, elevation
+        
+        
+        # SIMULATOR
+        'data_output_folder': data_output_folder, # simulator needs this
+        
+        # if ranking is 0
+        'weighting_ranking_0': False,
+        'w_ranking_0_value': 1e-6
         }
