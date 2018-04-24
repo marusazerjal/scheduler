@@ -6,7 +6,6 @@ import numpy as np
 import math
 import pickle
 import json
-#~ import urllib2
 import datetime
 from collections import defaultdict
 
@@ -20,6 +19,7 @@ from astropy import units as u
 from astroplan import Observer
 
 import taipan.core as tp
+#~ reload(tp)
 
 # FunnelWeb Scheduler
 import manage_list_of_observed_tiles
@@ -37,6 +37,7 @@ reload(obstile)
 reload(create_obs_config_json)
 reload(visualization)
 
+
 print 'Input tiling file:', params.params['input_tiling_filename']
 try:
     TILES = data[0]
@@ -52,7 +53,8 @@ except NameError:
 
 print 'Number of input tiles:', len(TILES)
 
-#~ print SETTINGS
+#~ print TILES[0]
+#~ print dir(TILES[0])
 
 print 'Nearest neighbours file', params.params['nearest_neighbours_filename']
 try:
@@ -67,6 +69,11 @@ except NameError:
 
 
 print 'List of observed tiles', params.params['observed_tiles_internal_filename']
+
+
+# Change defaults. NB By changing in tp, we change in tl.tp and fwtl.tp also.
+tp.STANDARDS_PER_TILE_MIN = SETTINGS['STANDARDS_PER_TILE_MIN']
+tp.GUIDES_PER_TILE_MIN = SETTINGS['GUIDES_PER_TILE_MIN']
 
 
 class Scheduler():
@@ -97,23 +104,26 @@ class Scheduler():
     def determine_internal_tile_id_and_priorities(self):
         """
         Determine internal field_id and priority.
+        Field_id: consequtive number
         """
         tiles2=[]
-        priorities=[]
+        scores=[]
         for tile_id, x in enumerate(self.tiles):
             x.field_id=tile_id
-            prior=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+params.params['exponent_base_add'])
+            score=x.calculate_tile_score(method=SETTINGS['ranking_method'], disqualify_below_min=SETTINGS['disqualify_below_min'], combined_weight=SETTINGS['combined_weight'], exp_base=SETTINGS['exp_base']+params.params['exponent_base_add'])
             
+            # Special treatment for priority 5 stars
             if params.params['highest_tile_score_if_any_priority_5_star']:
                 p=set([y.priority for y in x.get_assigned_targets_science(include_science_standards=False)])
                 if 5 in p:
                     prior=params.params['highest_tile_score_if_any_priority_5_star_value']
-
-            x.priority=prior
-            priorities.append(prior)
+            
+            x.priority=score
+            #~ print x.priority
+            scores.append(score)
             tiles2.append(x)
         self.tiles=tiles2
-        self.max_priority=np.max(priorities)
+        self.max_priority=np.max(scores)
 
     # TODO
     def next_tile(self, date=None, ra_current=None, dec_current=None, weather=None, bright_time=False, limiting_magnitude=None):

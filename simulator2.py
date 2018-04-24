@@ -36,9 +36,10 @@ class Dictlist(dict):
 		self[key].append(value)
 
 
-# CLEAN LIST OF TILES ALREADY OBSERVED BEFORE EACH SIMULATION!
+# Count tiles. When you run out of all the tiles, terminate the simulator.
+# time with no observing: ruined by bad weather.
+
 # Remote twilight time from time available to observe.
-# It is better to change data_output_folder = 'data_output/' to something else (in the params.py file). Don't forget to add nearest_heighbours file.
 
 print 'Start simulation'
 
@@ -50,6 +51,8 @@ class Simulator():
         self.ra_current=None
         self.dec_current=None
 
+        self.number_of_tiles = self.scheduler.number_of_all_tiles() # total number of all the tiles in this tiling run
+        self.number_of_tiles_observed=0
 
         self.unique_targets=set()
         self.repeats=Dictlist()
@@ -114,6 +117,7 @@ class Simulator():
         # Statistics and technical stuff
         if best_tile is not None:
             print best_tile
+            self.number_of_tiles_observed+=1
             self.print_statistics(best_tile=best_tile, json_filename=json_filename, ts=ts)
 
             self.ra_current=best_tile.TaipanTile.ra
@@ -182,14 +186,14 @@ class Simulator():
         self.is_night = False
         self.bad_weather_duration=TimeDelta(0, format='sec')
 
-        while t < params_simulator.params['date_finish'] and self.time_with_no_observing < TimeDelta(3600.0*24.0*10.0, format='sec'):
+        while t < params_simulator.params['date_finish'] and self.number_of_tiles_observed < self.number_of_tiles and self.time_with_no_observing < TimeDelta(3600.0*24.0*10.0, format='sec'):
             ts=str(t)[:-7]
             date=ts[:10]
 
             # NIGHT
             sun_set = self.observatory.sun_set_time(Time(date) + TimeDelta(3600.0, format='sec')).datetime     
             sun_rise = self.observatory.sun_rise_time(Time(date) - TimeDelta(3600.0, format='sec') + TimeDelta(1.0, format='jd')).datetime # NEXT DAY
-            print date, sun_set, sun_rise
+            #~ print date, sun_set, sun_rise
             if t>=sun_set and t<sun_rise:
                 pass # it is night
             else: # daytime

@@ -6,9 +6,10 @@ import os
 
 # Input data
 input_tiling_filename_folder = 'data_input/'
-input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
+#~ input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
+input_tiling_filename = '180409_0157_25_fw_tiling.pkl'
 
-data_output_folder = 'data9/'
+data_output_folder = 'data_paper1/'
 
 # Create this folder
 if not os.path.exists(data_output_folder):
@@ -25,9 +26,9 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         #~ 'obs_config_json_folder': 'observers_files/funnelweb/',
         'obs_config_json_folder': '%sjson/'%data_output_folder,
         
-        'exponent_base_add': 2.0, # add this number to the default exponent base of 3
-        'highest_tile_score_if_any_priority_5_star': False,
-        'highest_tile_score_if_any_priority_5_star_value': 1e+100,
+        'exponent_base_add': 4.0, # add this number to the default exponent base of 3
+        'highest_tile_score_if_any_priority_5_star': True,
+        'highest_tile_score_if_any_priority_5_star_value': 1e+8,
         
         'ALT_MIN': 27.0, # Minimal altitude of the tile good to observe
         'ALT_MAX': 85.0, # Maximal altitude of the tile good to observe
@@ -60,6 +61,6 @@ params={'input_tiling_filename': '%s%s'%(input_tiling_filename_folder, input_til
         'data_output_folder': data_output_folder, # simulator needs this
         
         # if ranking is 0
-        'weighting_ranking_0': False,
-        'w_ranking_0_value': 1e-6
+        #~ 'weighting_ranking_0': False,
+        #~ 'w_ranking_0_value': 1e-6
         }

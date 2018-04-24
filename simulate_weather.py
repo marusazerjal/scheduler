@@ -72,6 +72,13 @@ def is_it_night(t):
     else:
         return True
 
+def exclude_bad_weather_from_the_weather_database():
+    for date, wd in weather_dict.iteritems():
+        if wd['light']<100 and wd['skydiff']<-15 and wd['humidity']<90:
+            # clear night
+            
+    
+
 if __name__ == "__main__":
     t=(time.Time('2014-10-24 11:20', format='iso')).mjd
     

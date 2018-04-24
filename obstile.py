@@ -240,31 +240,7 @@ class ObsTile():
         Weighting between H (hour angle), Ranking (priority) and slew time.
         """
         w_altitude = self.weighting_altitude() # [0, 1]
-        #~ w_slew_time = self.weighting_slew_time(ra_current=ra_current, dec_current=dec_current) # [0, 1]
-        w_moon = self.weighting_moon_distance() # [0, 1]
-        w_density = self.weighting_field_density_knn(nearest_neighbours=nearest_neighbours, observed_tile_id_internal=observed_tile_id_internal) # [0, 1]
-        w_mag_range = self.weighting_magnitude_range(observed_tile_id_internal=observed_tile_id_internal, tiles_mag_range=tiles_mag_range)
-        
-        # Take tiles with priority 0 into account
-        w_ranking = float(self.TaipanTile.priority)# / float(self.max_priority) # [0, 1]
-        
-        # Some tiles have ranking equal to 0.
-        if params.params['weighting_ranking_0']:
-            w_ranking = float(self.TaipanTile.priority)
-            if w_ranking<1e-12:
-                w_ranking=params.params['w_ranking_0_value']
-        
-        #~ w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
-        w = w_ranking * w_altitude * w_moon * w_density * w_mag_range # No slew time because it is very fast (reconfig is much longer)
-
-        self.weight = w
-
-    def weighting_original(self, nearest_neighbours=None, observed_tile_id_internal=None, tiles_mag_range=None, ra_current=None, dec_current=None):
-        """
-        Weighting between H (hour angle), Ranking (priority) and slew time.
-        """
-        w_altitude = self.weighting_altitude() # [0, 1]
-        #~ w_slew_time = self.weighting_slew_time(ra_current=ra_current, dec_current=dec_current) # [0, 1]
+        w_slew_time = self.weighting_slew_time(ra_current=ra_current, dec_current=dec_current) # [0, 1]
         w_moon = self.weighting_moon_distance() # [0, 1]
         w_density = self.weighting_field_density_knn(nearest_neighbours=nearest_neighbours, observed_tile_id_internal=observed_tile_id_internal) # [0, 1]
         w_mag_range = self.weighting_magnitude_range(observed_tile_id_internal=observed_tile_id_internal, tiles_mag_range=tiles_mag_range)
@@ -274,8 +250,8 @@ class ObsTile():
         #~ if w_ranking<1e-12:
             #~ w_ranking=1e-4
         
-        #~ w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
-        w = w_ranking * w_altitude * w_moon * w_density * w_mag_range # No slew time because it is very fast (reconfig is much longer)
+        w = w_ranking * w_altitude * w_slew_time * w_moon * w_density * w_mag_range
+        #~ w = w_ranking * w_altitude * w_moon * w_density * w_mag_range # No slew time because it is very fast (reconfig is much longer)
 
         self.weight = w
 
