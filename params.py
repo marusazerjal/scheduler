@@ -6,10 +6,10 @@ import os
 
 # Input data
 input_tiling_filename_folder = 'data_input/'
-#~ input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
-input_tiling_filename = '180409_0157_25_fw_tiling.pkl'
+input_tiling_filename = '180222_2311_21_fw_tiling.pkl'
+#~ input_tiling_filename = '180409_0157_25_fw_tiling.pkl' # just two different priorities
 
-data_output_folder = 'data_paper1/'
+data_output_folder = 'data_output/data_paper2/'
 
 # Create this folder
 if not os.path.exists(data_output_folder):

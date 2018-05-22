@@ -15,7 +15,8 @@ import pickle
 
 from astropy.time import Time, TimeDelta
 from astroplan.moon import moon_illumination
-from astropy.coordinates import get_moon
+from astropy.coordinates import get_sun#get_moon
+from astropy.coordinates import AltAz
 from astroplan import Observer
 
 import params
@@ -51,7 +52,7 @@ class Simulator():
         self.ra_current=None
         self.dec_current=None
 
-        self.number_of_tiles = scheduler.number_of_all_tiles() # total number of all the tiles in this tiling run
+        self.number_of_tiles = self.scheduler.number_of_all_tiles() # total number of all the tiles in this tiling run
         self.number_of_tiles_observed=0
 
         self.unique_targets=set()
@@ -191,6 +192,12 @@ class Simulator():
             date=ts[:10]
 
             # NIGHT
+#~ times = midnight + delta_midnight
+#~ altazframe = AltAz(obstime=times, location=bear_mountain)
+#~ sunaltazs = get_sun(times).transform_to(altazframe)
+#~ sunaltazs.alt
+            
+            
             sun_set = self.observatory.sun_set_time(Time(date) + TimeDelta(3600.0, format='sec')).datetime     
             sun_rise = self.observatory.sun_rise_time(Time(date) - TimeDelta(3600.0, format='sec') + TimeDelta(1.0, format='jd')).datetime # NEXT DAY
             #~ print date, sun_set, sun_rise

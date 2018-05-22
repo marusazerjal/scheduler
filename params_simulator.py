@@ -10,7 +10,7 @@ data_output_folder = params.params['data_output_folder']
 params={   'simulator_statistics_output': '%ssimulator_statistics.dat'%data_output_folder,
            'simulator_statistics_output_calibration': '%ssimulator_statistics_calibration.dat'%data_output_folder,
            
-           'date_start': Time('2018-06-22 11:15'), # UT
+           'date_start': Time('2018-08-01 11:15'), # UT
            'date_finish': Time('2021-12-22 12:00'),
            #~ 'date_start': Time('2018-07-03 11:15'), # UT
            #~ 'date_finish': Time('2018-07-04 12:00'),
