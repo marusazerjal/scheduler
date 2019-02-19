@@ -9,6 +9,8 @@ import simplejson as json
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
+import random # just for testing. delete!
+
 #~ from json import encoder
 #~ encoder.FLOAT_REPR = lambda o: format(o, '.4f')
 from decimal import Decimal
@@ -29,98 +31,58 @@ reload(params)
 def create_ObsConfig_json(tile=None, utc=None):
     tile=tile.TaipanTile
     
-    ra_tile, dec_tile = format_coordinates(tile.ra, tile.dec)
-    
     fibres={v: k for k, v in tile.fibres.iteritems()}
-    
-    # targets: including standards?
-    targets=[]
-    for x in tile.get_assigned_targets_science():
-        ra, dec = format_coordinates2(x.ra, x.dec)
-        targets.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))}) # Decimal(str(x.mag))
 
-    guides=[]
-    for x in tile.get_assigned_targets_guide():
-        ra, dec = format_coordinates2(x.ra, x.dec)
-        guides.append({'sbID': fibres[x], 'ra': ra, "dec": dec, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))})
+    # targets: including standards?
+    science = [{"type": "science", 'bugLemoID': fibres[x], 'ra': x.ra, "dec": x.dec, "pmRA": 50.0, "pmDec": -10.0, "mag": Decimal(str(x.mag)), "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": str(x.idn)} for x in tile.get_assigned_targets_science()] # FIXME
+    guides = [{"type": "guide", 'bugLemoID': fibres[x], 'ra': x.ra, "dec": x.dec, "pmRA": 50.0, "pmDec": -10.0, "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": str(x.idn), "mag": Decimal(str(x.mag))} for x in tile.get_assigned_targets_guide()] # FIXME
     
-    # What does sky need 'mag'?
-    sky=[{'sbID': fibres[x], 'ra': "02:41:04.8", "dec": "-08:15:21", "xMicrons": -50400.0, "yMicrons": -54500.0, "targetID": x.idn, "mag": Decimal(str(x.mag))} for x in tile.get_assigned_targets_guide()]
+    
+    # not perfect, but it is good enough
+    n=len(tile.get_assigned_targets_guide())
+    PA = [random.uniform(-np.pi, np.pi) for i in range(n)]
+    R = [random.uniform(0, 2.9) for i in range(n)]
+    
+    #~ sky = [{"type": "sky", 'bugLemoID': fibres[x], 'ra': tile.ra+random.uniform(-2.7, 2.7), "dec": tile.dec+random.uniform(-2.7, 2.7), "xMicrons": -50400.0, "yMicrons": -54500.0} for x in tile.get_assigned_targets_guide()] # FIXME
+    sky = [{"type": "sky", 'bugLemoID': fibres[x], 'ra': tile.ra+r*np.sin(pa), "dec": tile.dec+r*np.cos(pa), "xMicrons": -50400.0, "yMicrons": -54500.0} for x, r, pa in zip(tile.get_assigned_targets_guide(), R, PA)] # FIXME
+
+    objects = science + guides + sky
     
     # is utc time right now or when this tile is supposed to be observed?
     utc=str(utc)
     utc=utc.replace(' ', 'T').split('.')[0]
     
     #"fieldID": For now it is internal fieldID. It is unique only within the current tiling. Should I change it?
-    
+
     data={
-        "configFormatVersion": 0.1,
-        "instrumentName": "AAO.TAIPAN",
-        "filePurpose": "Instrument configuration",
-        "notes": "Any notes that the tiler and or router want to add. We may or may not actually need this, but it seemed a good idea to include a field for any explanatory text that we may wish to include.",
-        "origin":
-        [
-        {"name": "FunnelWebSurvey.Tiler", "software": "tiler_executable", "version": "v2.34_20170109", "execDate": "2017-01-23T16:33:58+11:00"},
-        {"name": "TAIPAN.Router", "software": "findRoute", "version": "v1.23_20170101", "execDate": "2017-01-24T16:33:58+11:00"}
-        ],
-
-        "configurationPhase": "tiling",
-        "survey": "FunnelWeb",
-        "fieldID": tile.field_id,
-        "fieldCentre":
+        "schemaID": 1,
+        "instrumentName": "AAO.Taipan", 
+        "origin": [
         {
-        "ra": ra_tile,
-        "dec": dec_tile,
-        "UT": utc
-        },
-        
-        "targets": targets,
-        "guideStars": guides,
-        "sky": sky,
-
-        "additionalFITSkeywords":
-        {
-        "KEYWORD1": "These FITS header items are passed straight to the instrument software...",
-        "ANOTHER": "...which writes the FITS file. The instrument doesn't act on them in any other way.",
-        "YET_MORE": "someValue"
-        },
-        
-        "routable": 'false',
-        "starbugRoute":
-        [
-        {
-            "tickID": 0,
-            "tickType": "initialPositions",
-            "data":
-            [
-            {"sbID": 1, "xMicrons": -50400.0, "yMicrons": -74500.0, "thetaDeg": 0.0},
-            {"sbID": 2, "xMicrons": -26400.0, "yMicrons": -98500.0, "thetaDeg": 10.0},
-            {"sbID": 3, "xMicrons": -54800.0, "yMicrons": -90900.0, "thetaDeg": 20.0}
-            ]
-        },
-        {
-            "tickID": 1, 
-            "tickType": "rotation",
-            "data":
-            [
-            {"sbID": 1, "thetaDeg": 0.0, "deltaTheta": 0.0},
-            {"sbID": 2, "thetaDeg": 0.0, "deltaTheta": -10.0},
-            {"sbID": 3, "thetaDeg": 20.0, "deltaTheta": 0.0}
-            ]
-        },
-        {
-            "tickID": 2,
-            "tickType": "translation",
-            "data":
-            [
-            {"sbID": 1, "xMicrons": -50400.0, "yMicrons": -54500.0, "deltaX": 0.0, "deltaY": 20000.0},
-            {"sbID": 2, "xMicrons": -26400.0, "yMicrons": -78500.0, "deltaX": 0.0, "deltaY": 20000.0},
-            {"sbID": 3, "xMicrons": -54800.0, "yMicrons": 0.0, "deltaX": 0.0, "deltaY": 0.0},
-            {"sbID": 4, "xMicrons": 10000.0, "yMicrons": 0.0, "deltaX": 0.0, "deltaY": 0.0}
-            ]
+           "name": "FunnelWebSurvey.Tiler",
+           "software": "tiler_executable_name",
+           "version": "v2.34_20170109", # FIXME
+           "execDate": "2017-01-23T16:33:58+11:00" # FIXME
         }
-        ]
-    }
+        ], 
+        "routable": "unknown", 
+        "fieldID": tile.field_id,
+        "filePurpose": "CoD.Testing", # FIXME
+        "configFormatVersion": 0.4, # FIXME
+        "fieldCentre": {
+        "ra": tile.ra,
+        "dec": tile.dec
+        }, 
+
+        "telModel":{ # FIXME
+          "cenWave": 6000.0,
+          "obsWave": 5000.0,
+          "UT": "2018-10-22 12:00:00"
+        },
+
+        "targets": objects
+
+        }
 
     t=utc.split('T')[1].replace(':', '')
     date=utc.split('T')[0].replace('-', '')
@@ -146,36 +108,3 @@ def create_ObsConfig_json(tile=None, utc=None):
     print '%s created.'%filename
     
     return filename
-
-def format_coordinates(ra, dec):
-    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree)
-    ra1='%02d:%02d:%02.1f'%(c.ra.hms.h, c.ra.hms.m, c.ra.hms.s)
-    dec1='%02d:%02d:%02.0f'%(c.dec.dms.d, np.abs(c.dec.dms.m), np.abs(c.dec.dms.s))
-    # TODO: round coordinates??
-    return ra1, dec1   
-
-def format_coordinates2(ra, dec):
-    ra1=ra/15.0 # H
-    H=int(ra1)
-    ra2=(ra1-H)*60.0 # M
-    M=int(ra2)
-    ra3=(ra2-M)*60.0
-    S=ra3
-    RA='%02d:%02d:%02.1f'%(H, M, S)
-    
-    if dec<0.0:
-        sign=-1.0
-    else:
-        sign=1.0
-    dec=np.abs(dec)
-    D=int(dec)
-    dec2=(dec-D)*60.0
-    m=int(dec2)
-    dec3=(dec2-m)*60.0
-    s=dec3
-    if sign<0.0:
-        DEC='-%02d:%02d:%02.0f'%(D, m, s)
-    else:
-        DEC='%02d:%02d:%02.0f'%(D, m, s)
-    # TODO: round coordinates??
-    return RA, DEC
